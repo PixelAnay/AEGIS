@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AEGIS — Waypoint Mission Dashboard</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#0d0d0d;--bg2:#141414;--bg3:#1a1a1a;--border:#2a2a2a;
+    --blue:#3b82f6;--blue2:#1d4ed8;--teal:#14b8a6;--amber:#f59e0b;
+    --red:#ef4444;--green:#22c55e;--purple:#8b5cf6;
+    --text:#d4d4d4;--muted:#525252;--muted2:#737373;
+  }
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+  /* ── top bar ── */
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:52px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand-dot{width:10px;height:10px;border-radius:50%;background:var(--blue);animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.85)}}
+  .brand-name{font-size:15px;font-weight:700;letter-spacing:.05em;color:#fff}
+  .brand-sub{font-size:11px;color:var(--muted);margin-left:2px}
+  .status-pills{display:flex;gap:8px}
+  .pill{font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;letter-spacing:.03em}
+  .pill-green{background:#0f2a17;color:#86efac}
+  .pill-blue{background:#0f1f35;color:#93c5fd}
+  .pill-amber{background:#2a1600;color:#fcd34d}
+  .pill-red{background:#2a0808;color:#fca5a5}
+  .topbar-right{display:flex;align-items:center;gap:14px}
+  .clock{font-size:13px;color:var(--muted2);font-variant-numeric:tabular-nums}
+
+  /* ── main layout ── */
+  .main{display:flex;flex:1;overflow:hidden}
+
+  /* ── left panel ── */
+  .left{width:300px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+  .panel-title{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:14px 16px 8px}
+  .scrollable{flex:1;overflow-y:auto;padding:0 12px 12px}
+  .scrollable::-webkit-scrollbar{width:4px}
+  .scrollable::-webkit-scrollbar-track{background:transparent}
+  .scrollable::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+  /* drone status */
+  .drone-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px}
+  .drone-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .drone-name{font-size:13px;font-weight:600;color:#fff}
+  .drone-mode{font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;background:#0f1f35;color:#93c5fd;cursor:pointer;transition:background .15s}
+  .drone-mode:hover{background:#1d4ed8}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .stat{background:var(--bg);border-radius:6px;padding:7px 9px}
+  .stat-label{font-size:10px;color:var(--muted);margin-bottom:2px}
+  .stat-val{font-size:15px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
+  .stat-unit{font-size:10px;color:var(--muted2);margin-left:2px}
+  .battery-bar{margin-top:8px}
+  .battery-label{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:4px}
+  .bar-track{background:var(--bg);border-radius:3px;height:6px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:3px;transition:width .5s}
+
+  /* mode buttons */
+  .mode-row{display:flex;gap:6px;margin-bottom:10px}
+  .mode-btn{flex:1;padding:8px 4px;border:1px solid var(--border);border-radius:7px;background:var(--bg3);color:var(--muted2);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;text-align:center}
+  .mode-btn.active{border-color:var(--blue);background:#0f1f35;color:#93c5fd}
+  .mode-btn:hover:not(.active){border-color:var(--muted);color:var(--text)}
+
+  /* waypoint list */
+  .wp-list{display:flex;flex-direction:column;gap:6px}
+  .wp-item{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 11px;display:flex;align-items:center;gap:8px;cursor:pointer;transition:border-color .15s}
+  .wp-item:hover{border-color:var(--blue)}
+  .wp-item.active-wp{border-color:var(--teal)}
+  .wp-num{width:22px;height:22px;border-radius:50%;background:var(--blue2);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .wp-num.home{background:#14532d}
+  .wp-num.reached{background:#15803d}
+  .wp-info{flex:1;min-width:0}
+  .wp-name{font-size:12px;font-weight:600;color:#fff}
+  .wp-coords{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wp-alt{font-size:11px;color:var(--amber);font-weight:600;flex-shrink:0}
+  .wp-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 4px;border-radius:4px;transition:color .15s}
+  .wp-del:hover{color:var(--red)}
+
+  /* add wp */
+  .add-wp-hint{font-size:11px;color:var(--muted);text-align:center;padding:10px;border:1px dashed var(--border);border-radius:8px;margin-top:4px}
+  .add-wp-hint.active{border-color:var(--blue);color:var(--blue);background:#0f172a}
+
+  /* mission controls */
+  .mission-controls{padding:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+  .mission-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:4px}
+  .mstat{background:var(--bg3);border-radius:6px;padding:7px;text-align:center}
+  .mstat-val{font-size:14px;font-weight:700;color:#fff}
+  .mstat-label{font-size:10px;color:var(--muted);margin-top:1px}
+  .btn-row{display:flex;gap:6px}
+  .btn{flex:1;padding:9px;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+  .btn-primary{background:var(--blue);color:#fff}
+  .btn-primary:hover{background:var(--blue2)}
+  .btn-primary:disabled{background:var(--bg3);color:var(--muted);cursor:not-allowed}
+  .btn-danger{background:#7f1d1d;color:#fca5a5}
+  .btn-danger:hover{background:#991b1b}
+  .btn-outline{background:var(--bg3);border:1px solid var(--border);color:var(--muted2)}
+  .btn-outline:hover{border-color:var(--muted);color:var(--text)}
+
+  /* ── map ── */
+  .map-wrap{flex:1;position:relative}
+  #map{width:100%;height:100%}
+
+  /* map overlay controls */
+  .map-toolbar{position:absolute;top:12px;left:12px;z-index:1000;display:flex;flex-direction:column;gap:6px}
+  .map-btn{width:36px;height:36px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted2);font-size:15px;transition:all .15s}
+  .map-btn:hover,.map-btn.active{background:var(--blue2);border-color:var(--blue);color:#fff}
+
+  .map-info{position:absolute;bottom:12px;left:12px;z-index:1000;background:rgba(13,13,13,.92);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--muted2);font-variant-numeric:tabular-nums}
+  .coords-live{font-size:12px;color:var(--text);font-weight:500}
+
+  /* ── right panel ── */
+  .right{width:260px;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+  .right-inner{flex:1;overflow-y:auto;padding:0 12px 12px}
+  .right-inner::-webkit-scrollbar{width:4px}
+  .right-inner::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+  /* wp detail form */
+  .wp-form{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px}
+  .form-row{margin-bottom:8px}
+  .form-label{font-size:10px;color:var(--muted);margin-bottom:4px;display:block}
+  .form-input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 9px;color:var(--text);font-size:12px;outline:none;transition:border-color .15s}
+  .form-input:focus{border-color:var(--blue)}
+  .form-select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 9px;color:var(--text);font-size:12px;outline:none}
+  .form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+
+  /* telemetry log */
+  .log-area{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:10px;font-family:monospace;color:var(--muted2);height:160px;overflow-y:auto;line-height:1.7}
+  .log-area::-webkit-scrollbar{width:3px}
+  .log-area::-webkit-scrollbar-thumb{background:var(--border)}
+  .log-line{margin-bottom:1px}
+  .log-time{color:var(--muted)}
+  .log-ok{color:var(--green)}
+  .log-warn{color:var(--amber)}
+  .log-info{color:var(--blue)}
+
+  /* perimeter section */
+  .perim-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px}
+  .perim-val{font-size:26px;font-weight:700;color:var(--teal);font-variant-numeric:tabular-nums}
+  .perim-unit{font-size:12px;color:var(--muted);margin-top:2px}
+  .perim-sub{font-size:11px;color:var(--muted2);margin-top:6px}
+
+  /* leaflet dark overrides */
+  .leaflet-container{background:#0d0d0d}
+  .leaflet-control-zoom a{background:var(--bg2)!important;color:var(--text)!important;border-color:var(--border)!important}
+  .leaflet-control-attribution{background:rgba(13,13,13,.8)!important;color:var(--muted)!important;font-size:9px}
+
+  /* map layer switcher */
+  .layer-switcher{position:absolute;top:12px;right:12px;z-index:1000;display:flex;gap:4px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:4px}
+  .layer-btn{padding:5px 12px;border-radius:5px;border:none;background:transparent;color:var(--muted2);font-size:11px;font-weight:600;cursor:pointer;letter-spacing:.03em;transition:all .15s}
+  .layer-btn.active{background:var(--blue2);color:#fff}
+  .layer-btn:hover:not(.active){background:var(--bg3);color:var(--text)}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-dot"></div>
+    <div>
+      <span class="brand-name">AEGIS</span>
+      <span class="brand-sub">Waypoint Mission Control</span>
+    </div>
+  </div>
+  <div class="status-pills">
+    <span class="pill pill-green" id="conn-pill">&#9679; Connected</span>
+    <span class="pill pill-blue" id="mode-pill">HYBRID</span>
+    <span class="pill pill-amber" id="gps-pill">GPS: 3D Fix  8 sats</span>
+  </div>
+  <div class="topbar-right">
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- LEFT PANEL -->
+  <div class="left">
+    <div class="panel-title">Drone Status</div>
+    <div class="scrollable">
+
+      <div class="drone-card">
+        <div class="drone-header">
+          <div class="drone-name">AEGIS-1</div>
+          <div class="drone-mode" id="mode-badge" onclick="cycleMode()">HYBRID</div>
+        </div>
+        <div class="stat-grid">
+          <div class="stat">
+            <div class="stat-label">Altitude</div>
+            <div class="stat-val" id="alt-val">0<span class="stat-unit">m</span></div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Speed</div>
+            <div class="stat-val" id="spd-val">0<span class="stat-unit">m/s</span></div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Distance</div>
+            <div class="stat-val" id="dist-val">0<span class="stat-unit">m</span></div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Heading</div>
+            <div class="stat-val" id="hdg-val">0<span class="stat-unit">°</span></div>
+          </div>
+        </div>
+        <div class="battery-bar">
+          <div class="battery-label"><span>Battery</span><span id="bat-pct">87%</span></div>
+          <div class="bar-track"><div class="bar-fill" id="bat-bar" style="width:87%;background:var(--green)"></div></div>
+        </div>
+      </div>
+
+      <div class="mode-row">
+        <div class="mode-btn" id="btn-manual" onclick="setMode('MANUAL')">Manual</div>
+        <div class="mode-btn active" id="btn-hybrid" onclick="setMode('HYBRID')">Hybrid</div>
+        <div class="mode-btn" id="btn-auto" onclick="setMode('AUTO')">Auto</div>
+      </div>
+
+      <div class="panel-title" style="padding:4px 4px 8px">Waypoints <span id="wp-count" style="color:var(--blue);font-size:11px;font-weight:700"></span></div>
+      <div class="wp-list" id="wp-list"></div>
+      <div class="add-wp-hint" id="add-hint">Click on map to place a waypoint</div>
+    </div>
+
+    <div class="mission-controls">
+      <div class="mission-stats">
+        <div class="mstat"><div class="mstat-val" id="total-dist">0</div><div class="mstat-label">m total</div></div>
+        <div class="mstat"><div class="mstat-val" id="eta-val">--</div><div class="mstat-label">ETA (min)</div></div>
+        <div class="mstat"><div class="mstat-val" id="area-val">0</div><div class="mstat-label">m² area</div></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btn-upload" onclick="uploadMission()" disabled>Upload</button>
+        <button class="btn btn-primary" id="btn-start" onclick="startMission()" disabled>Start</button>
+        <button class="btn btn-danger" onclick="abortMission()">Abort</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-outline" onclick="clearWaypoints()">Clear all</button>
+        <button class="btn btn-outline" onclick="exportMission()">Export JSON</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div class="map-wrap">
+    <div id="map"></div>
+
+    <div class="map-toolbar">
+      <div class="map-btn active" id="tool-wp" onclick="setTool('waypoint')" title="Place waypoint">&#43;</div>
+      <div class="map-btn" id="tool-pan" onclick="setTool('pan')" title="Pan">&#9654;</div>
+      <div class="map-btn" id="tool-perim" onclick="setTool('perimeter')" title="Perimeter trace">&#9651;</div>
+      <div class="map-btn" onclick="centerOnDrone()" title="Center on drone">&#9678;</div>
+    </div>
+
+    <!-- Layer Switcher -->
+    <div class="layer-switcher">
+      <button class="layer-btn active" id="layer-dark" onclick="switchLayer('dark')">Dark</button>
+      <button class="layer-btn" id="layer-satellite" onclick="switchLayer('satellite')">Satellite</button>
+      <button class="layer-btn" id="layer-terrain" onclick="switchLayer('terrain')">Terrain</button>
+    </div>
+
+    <div class="map-info">
+      <div class="coords-live" id="cursor-coords">Move mouse over map</div>
+      <div>Drone: <span id="drone-pos-display">18.5204° N, 73.8567° E</span></div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right">
+    <div class="panel-title">Waypoint Editor</div>
+    <div class="right-inner">
+
+      <div class="wp-form" id="wp-editor">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Select a waypoint to edit</div>
+        <div class="form-row">
+          <label class="form-label">Label</label>
+          <input class="form-input" id="ed-label" placeholder="e.g. Checkpoint A" oninput="updateSelectedWP()">
+        </div>
+        <div class="form-row-2">
+          <div class="form-row">
+            <label class="form-label">Lat</label>
+            <input class="form-input" id="ed-lat" placeholder="18.5204" oninput="updateSelectedWP()">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Lng</label>
+            <input class="form-input" id="ed-lng" placeholder="73.8567" oninput="updateSelectedWP()">
+          </div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-row">
+            <label class="form-label">Altitude (m)</label>
+            <input class="form-input" id="ed-alt" type="number" value="30" min="5" max="120" oninput="updateSelectedWP()">
+          </div>
+          <div class="form-row">
+            <label class="form-label">Speed (m/s)</label>
+            <input class="form-input" id="ed-spd" type="number" value="5" min="1" max="15" oninput="updateSelectedWP()">
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">Action on arrival</label>
+          <select class="form-select" id="ed-action" onchange="updateSelectedWP()">
+            <option value="none">None — continue</option>
+            <option value="hover">Hover 5s</option>
+            <option value="hover10">Hover 10s</option>
+            <option value="photo">Capture photo</option>
+            <option value="payload">Drop payload</option>
+            <option value="broadcast">Loudspeaker broadcast</option>
+            <option value="rtl">Return to home</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="panel-title" style="padding:4px 4px 8px">Perimeter Area</div>
+      <div class="perim-card">
+        <div class="perim-val" id="perim-area">0</div>
+        <div class="perim-unit">square metres</div>
+        <div class="perim-sub" id="perim-sub">Place 3+ waypoints to calculate enclosed area</div>
+      </div>
+
+      <div class="panel-title" style="padding:4px 4px 8px">Mission Log</div>
+      <div class="log-area" id="log-area"></div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+const DRONE_HOME = [18.5204, 73.8567];
+let waypoints = [];
+let selectedWP = null;
+let activeTool = 'waypoint';
+let droneMarker = null;
+let routeLine = null;
+let missionRunning = false;
+let missionIndex = 0;
+let dronePos = [...DRONE_HOME];
+let droneHeading = 0;
+let battery = 87;
+let simInterval = null;
+
+const map = L.map('map', { zoomControl: true, attributionControl: true });
+
+const tileLayers = {
+  dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 20
+  }),
+  satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '&copy; Esri &mdash; Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP', maxZoom: 20
+  }),
+  terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors, SRTM | &copy; OpenTopoMap', maxZoom: 17
+  })
+};
+
+let activeLayer = tileLayers.dark;
+activeLayer.addTo(map);
+
+function switchLayer(type) {
+  map.removeLayer(activeLayer);
+  activeLayer = tileLayers[type];
+  activeLayer.addTo(map);
+  // Move route line and markers to top
+  if (routeLine) routeLine.bringToFront();
+  ['dark','satellite','terrain'].forEach(t => {
+    document.getElementById('layer-'+t).classList.toggle('active', t === type);
+  });
+  log(`Map layer switched to ${type}`, 'info');
+}
+
+map.setView(DRONE_HOME, 15);
+
+function droneIcon() {
+  return L.divIcon({
+    html: `<div style="width:20px;height:20px;background:var(--blue,#3b82f6);border:2px solid #fff;border-radius:50%;transform:rotate(${droneHeading}deg);box-shadow:0 0 8px rgba(59,130,246,.6)"></div>`,
+    iconSize: [20, 20], iconAnchor: [10, 10], className: ''
+  });
+}
+
+droneMarker = L.marker(DRONE_HOME, { icon: droneIcon(), zIndexOffset: 1000 })
+  .addTo(map).bindPopup('<b>AEGIS-1</b><br>Home base');
+
+map.on('click', onMapClick);
+map.on('mousemove', e => {
+  document.getElementById('cursor-coords').textContent =
+    `${e.latlng.lat.toFixed(6)}° N,  ${e.latlng.lng.toFixed(6)}° E`;
+});
+
+function onMapClick(e) {
+  if (activeTool !== 'waypoint') return;
+  addWaypoint(e.latlng.lat, e.latlng.lng);
+}
+
+function wpIcon(num, status) {
+  const colors = { default: '#3b82f6', reached: '#22c55e', active: '#14b8a6', home: '#8b5cf6' };
+  const bg = colors[status] || colors.default;
+  return L.divIcon({
+    html: `<div style="width:28px;height:28px;background:${bg};border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.5)">${num}</div>`,
+    iconSize: [28, 28], iconAnchor: [14, 14], className: ''
+  });
+}
+
+function addWaypoint(lat, lng, label) {
+  const num = waypoints.length + 1;
+  const name = label || `WP-${num}`;
+  const wp = {
+    id: Date.now(), num, lat, lng, alt: 30, spd: 5,
+    label: name, action: 'none', status: 'default',
+    marker: null
+  };
+  const marker = L.marker([lat, lng], { icon: wpIcon(num, 'default'), draggable: true })
+    .addTo(map)
+    .bindPopup(`<b>${name}</b><br>${lat.toFixed(5)}, ${lng.toFixed(5)}<br>Alt: 30m`);
+
+  marker.on('click', () => selectWP(wp.id));
+  marker.on('dragend', e => {
+    const pos = e.target.getLatLng();
+    wp.lat = +pos.lat.toFixed(6);
+    wp.lng = +pos.lng.toFixed(6);
+    refreshRoute();
+    renderWPList();
+    if (selectedWP === wp.id) populateEditor(wp);
+    recalcStats();
+    log(`WP-${wp.num} moved to ${wp.lat}, ${wp.lng}`, 'info');
+  });
+  wp.marker = marker;
+  waypoints.push(wp);
+  selectWP(wp.id);
+  refreshRoute();
+  renderWPList();
+  recalcStats();
+  updateButtons();
+  log(`Waypoint ${name} placed at ${lat.toFixed(5)}, ${lng.toFixed(5)}`, 'ok');
+}
+
+function removeWaypoint(id) {
+  const idx = waypoints.findIndex(w => w.id === id);
+  if (idx === -1) return;
+  waypoints[idx].marker.remove();
+  waypoints.splice(idx, 1);
+  waypoints.forEach((w, i) => {
+    w.num = i + 1;
+    w.marker.setIcon(wpIcon(w.num, w.status));
+  });
+  if (selectedWP === id) { selectedWP = null; clearEditor(); }
+  refreshRoute(); renderWPList(); recalcStats(); updateButtons();
+  log(`Waypoint removed`, 'warn');
+}
+
+function selectWP(id) {
+  selectedWP = id;
+  const wp = waypoints.find(w => w.id === id);
+  if (wp) { populateEditor(wp); map.panTo([wp.lat, wp.lng]); }
+  renderWPList();
+}
+
+function populateEditor(wp) {
+  document.getElementById('ed-label').value = wp.label;
+  document.getElementById('ed-lat').value = wp.lat;
+  document.getElementById('ed-lng').value = wp.lng;
+  document.getElementById('ed-alt').value = wp.alt;
+  document.getElementById('ed-spd').value = wp.spd;
+  document.getElementById('ed-action').value = wp.action;
+}
+
+function clearEditor() {
+  ['ed-label','ed-lat','ed-lng','ed-alt','ed-spd'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('ed-action').value = 'none';
+}
+
+function updateSelectedWP() {
+  if (!selectedWP) return;
+  const wp = waypoints.find(w => w.id === selectedWP);
+  if (!wp) return;
+  wp.label = document.getElementById('ed-label').value || wp.label;
+  const newLat = parseFloat(document.getElementById('ed-lat').value);
+  const newLng = parseFloat(document.getElementById('ed-lng').value);
+  if (!isNaN(newLat) && !isNaN(newLng)) {
+    wp.lat = newLat; wp.lng = newLng;
+    wp.marker.setLatLng([newLat, newLng]);
+  }
+  wp.alt = parseInt(document.getElementById('ed-alt').value) || wp.alt;
+  wp.spd = parseInt(document.getElementById('ed-spd').value) || wp.spd;
+  wp.action = document.getElementById('ed-action').value;
+  wp.marker.setPopupContent(`<b>${wp.label}</b><br>${wp.lat.toFixed(5)}, ${wp.lng.toFixed(5)}<br>Alt: ${wp.alt}m | ${wp.action}`);
+  refreshRoute(); renderWPList(); recalcStats();
+}
+
+function refreshRoute() {
+  if (routeLine) routeLine.remove();
+  if (waypoints.length < 1) return;
+  const pts = [DRONE_HOME, ...waypoints.map(w => [w.lat, w.lng])];
+  routeLine = L.polyline(pts, { color: '#3b82f6', weight: 2, dashArray: '6 4', opacity: .8 }).addTo(map);
+}
+
+function renderWPList() {
+  const list = document.getElementById('wp-list');
+  document.getElementById('wp-count').textContent = `(${waypoints.length})`;
+  list.innerHTML = '';
+
+  const homeEl = document.createElement('div');
+  homeEl.className = 'wp-item';
+  homeEl.innerHTML = `<div class="wp-num home">H</div><div class="wp-info"><div class="wp-name">Home base</div><div class="wp-coords">${DRONE_HOME[0].toFixed(5)}, ${DRONE_HOME[1].toFixed(5)}</div></div><div class="wp-alt">0m</div>`;
+  list.appendChild(homeEl);
+
+  waypoints.forEach(wp => {
+    const el = document.createElement('div');
+    el.className = 'wp-item' + (selectedWP === wp.id ? ' active-wp' : '');
+    el.innerHTML = `
+      <div class="wp-num ${wp.status === 'reached' ? 'reached' : ''}">${wp.num}</div>
+      <div class="wp-info">
+        <div class="wp-name">${wp.label}</div>
+        <div class="wp-coords">${wp.lat.toFixed(5)}°N, ${wp.lng.toFixed(5)}°E</div>
+      </div>
+      <div class="wp-alt">${wp.alt}m</div>
+      <button class="wp-del" onclick="event.stopPropagation();removeWaypoint(${wp.id})">&#x2715;</button>`;
+    el.onclick = () => selectWP(wp.id);
+    list.appendChild(el);
+  });
+
+  const hint = document.getElementById('add-hint');
+  hint.className = 'add-wp-hint' + (activeTool === 'waypoint' ? ' active' : '');
+}
+
+function recalcStats() {
+  let totalDist = 0;
+  const pts = [DRONE_HOME, ...waypoints.map(w => [w.lat, w.lng])];
+  for (let i = 1; i < pts.length; i++) {
+    totalDist += haversine(pts[i-1][0], pts[i-1][1], pts[i][0], pts[i][1]);
+  }
+  document.getElementById('total-dist').textContent = Math.round(totalDist);
+  const avgSpd = waypoints.length ? waypoints.reduce((s,w) => s + w.spd, 0) / waypoints.length : 5;
+  const eta = avgSpd > 0 ? ((totalDist / avgSpd) / 60).toFixed(1) : '--';
+  document.getElementById('eta-val').textContent = eta;
+
+  const area = shoelace(waypoints.map(w => [w.lat, w.lng]));
+  document.getElementById('area-val').textContent = Math.round(area);
+  document.getElementById('perim-area').textContent = Math.round(area).toLocaleString();
+  document.getElementById('perim-sub').textContent = waypoints.length >= 3
+    ? `Enclosed by ${waypoints.length} waypoints — ${(area/10000).toFixed(3)} ha`
+    : 'Place 3+ waypoints to calculate enclosed area';
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371000, dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function shoelace(coords) {
+  if (coords.length < 3) return 0;
+  const R = 6371000;
+  let area = 0;
+  const n = coords.length;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const xi = coords[i][1] * Math.PI / 180 * R * Math.cos(coords[i][0] * Math.PI / 180);
+    const yi = coords[i][0] * Math.PI / 180 * R;
+    const xj = coords[j][1] * Math.PI / 180 * R * Math.cos(coords[j][0] * Math.PI / 180);
+    const yj = coords[j][0] * Math.PI / 180 * R;
+    area += xi * yj - xj * yi;
+  }
+  return Math.abs(area / 2);
+}
+
+function setTool(t) {
+  activeTool = t;
+  ['wp','pan','perim'].forEach(id => document.getElementById('tool-'+id)?.classList.remove('active'));
+  const map2 = { waypoint:'wp', pan:'pan', perimeter:'perim' };
+  document.getElementById('tool-'+map2[t])?.classList.add('active');
+  map.dragging[t === 'pan' ? 'enable' : 'enable']();
+  renderWPList();
+}
+
+function setMode(m) {
+  ['MANUAL','HYBRID','AUTO'].forEach(x => {
+    document.getElementById('btn-'+x.toLowerCase()).classList.toggle('active', x === m);
+  });
+  document.getElementById('mode-badge').textContent = m;
+  document.getElementById('mode-pill').textContent = m;
+  log(`Mode switched to ${m}`, 'info');
+}
+
+function cycleMode() {
+  const modes = ['MANUAL','HYBRID','AUTO'];
+  const cur = document.getElementById('mode-badge').textContent;
+  const next = modes[(modes.indexOf(cur)+1)%3];
+  setMode(next);
+}
+
+function updateButtons() {
+  const has = waypoints.length > 0;
+  document.getElementById('btn-upload').disabled = !has;
+  document.getElementById('btn-start').disabled = !has;
+}
+
+function uploadMission() {
+  log('Uploading mission to flight controller...', 'info');
+  setTimeout(() => log(`Mission uploaded: ${waypoints.length} waypoints`, 'ok'), 800);
+  document.getElementById('btn-start').disabled = false;
+}
+
+function startMission() {
+  if (missionRunning || waypoints.length === 0) return;
+  missionRunning = true; missionIndex = 0;
+  log('Mission started — AUTONOMOUS', 'ok');
+  document.getElementById('mode-pill').textContent = 'AUTO';
+  simulateFlight();
+}
+
+function simulateFlight() {
+  if (!missionRunning || missionIndex >= waypoints.length) {
+    missionRunning = false;
+    log('Mission complete — returning to home', 'ok');
+    document.getElementById('mode-pill').textContent = 'HYBRID';
+    return;
+  }
+  const wp = waypoints[missionIndex];
+  wp.status = 'active';
+  wp.marker.setIcon(wpIcon(wp.num, 'active'));
+  renderWPList();
+  log(`Navigating to ${wp.label} (${wp.lat.toFixed(4)}, ${wp.lng.toFixed(4)}) @ ${wp.alt}m`, 'info');
+
+  const steps = 40;
+  let step = 0;
+  const startLat = dronePos[0], startLng = dronePos[1];
+  const dLat = (wp.lat - startLat) / steps, dLng = (wp.lng - startLng) / steps;
+
+  simInterval = setInterval(() => {
+    step++;
+    dronePos[0] = startLat + dLat * step;
+    dronePos[1] = startLng + dLng * step;
+    droneHeading = (Math.atan2(dLng, dLat) * 180 / Math.PI + 360) % 360;
+    droneMarker.setLatLng(dronePos);
+    droneMarker.setIcon(droneIcon());
+    document.getElementById('drone-pos-display').textContent = `${dronePos[0].toFixed(5)}° N, ${dronePos[1].toFixed(5)}° E`;
+    document.getElementById('alt-val').innerHTML = `${wp.alt}<span class="stat-unit">m</span>`;
+    document.getElementById('spd-val').innerHTML = `${wp.spd}<span class="stat-unit">m/s</span>`;
+    document.getElementById('hdg-val').innerHTML = `${Math.round(droneHeading)}<span class="stat-unit">°</span>`;
+    const dist = haversine(dronePos[0], dronePos[1], wp.lat, wp.lng);
+    document.getElementById('dist-val').innerHTML = `${Math.round(dist)}<span class="stat-unit">m</span>`;
+
+    battery = Math.max(10, battery - 0.03);
+    const pct = Math.round(battery);
+    document.getElementById('bat-pct').textContent = pct + '%';
+    document.getElementById('bat-bar').style.width = pct + '%';
+    document.getElementById('bat-bar').style.background = pct > 50 ? 'var(--green)' : pct > 25 ? 'var(--amber)' : 'var(--red)';
+
+    if (step >= steps) {
+      clearInterval(simInterval);
+      wp.status = 'reached';
+      wp.marker.setIcon(wpIcon(wp.num, 'reached'));
+      renderWPList();
+      log(`Reached ${wp.label} — action: ${wp.action}`, 'ok');
+      missionIndex++;
+      setTimeout(simulateFlight, 1200);
+    }
+  }, 80);
+}
+
+function abortMission() {
+  clearInterval(simInterval);
+  missionRunning = false;
+  waypoints.forEach(w => { if (w.status === 'active') { w.status = 'default'; w.marker.setIcon(wpIcon(w.num, 'default')); } });
+  log('MISSION ABORTED — switching to manual', 'warn');
+  document.getElementById('mode-pill').textContent = 'MANUAL';
+  renderWPList();
+}
+
+function clearWaypoints() {
+  clearInterval(simInterval); missionRunning = false;
+  waypoints.forEach(w => w.marker.remove());
+  waypoints = []; selectedWP = null;
+  if (routeLine) routeLine.remove();
+  clearEditor(); renderWPList(); recalcStats(); updateButtons();
+  log('All waypoints cleared', 'warn');
+}
+
+function centerOnDrone() { map.setView(dronePos, 16); }
+
+function exportMission() {
+  const data = { drone: 'AEGIS-1', home: DRONE_HOME, waypoints: waypoints.map(w => ({ num: w.num, label: w.label, lat: w.lat, lng: w.lng, altitude: w.alt, speed: w.spd, action: w.action })) };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'aegis_mission.json'; a.click();
+  log('Mission exported as aegis_mission.json', 'ok');
+}
+
+function log(msg, type = 'info') {
+  const area = document.getElementById('log-area');
+  const t = new Date().toTimeString().slice(0, 8);
+  const cls = { ok: 'log-ok', warn: 'log-warn', info: 'log-info' }[type] || 'log-info';
+  area.innerHTML += `<div class="log-line"><span class="log-time">[${t}]</span> <span class="${cls}">${msg}</span></div>`;
+  area.scrollTop = area.scrollHeight;
+}
+
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toTimeString().slice(0, 8);
+}
+setInterval(updateClock, 1000); updateClock();
+
+setInterval(() => {
+  const alt = parseInt(document.getElementById('alt-val').textContent) || 0;
+  if (!missionRunning && alt === 0) {
+    document.getElementById('spd-val').innerHTML = `0<span class="stat-unit">m/s</span>`;
+  }
+}, 2000);
+
+log('AEGIS dashboard online', 'ok');
+log('Flight controller connected via MAVLink', 'ok');
+log('GPS fix acquired — 8 satellites', 'ok');
+log('Click on the map to place waypoints', 'info');
+
+updateButtons(); renderWPList(); recalcStats();
+</script>
+</body>
+</html>
