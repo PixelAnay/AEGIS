@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — Beyond Reality</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&family=Share+Tech+Mono&display=swap');
+
+:root {
+  --neon-cyan: #00f0ff;
+  --neon-pink: #ff00aa;
+  --neon-purple: #b400ff;
+  --neon-green: #00ff88;
+  --neon-orange: #ff6600;
+  --neon-red: #ff0044;
+  --bg-void: #000000;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg-void);
+  color: #fff;
+  font-family: 'Rajdhani', sans-serif;
+  overflow-x: hidden;
+  cursor: none;
+}
+
+/* CUSTOM CURSOR */
+.cursor {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--neon-cyan);
+  border-radius: 50%;
+  position: fixed;
+  pointer-events: none;
+  z-index: 99999;
+  transition: transform 0.1s, background 0.2s;
+  mix-blend-mode: difference;
+}
+.cursor-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--neon-pink);
+  border-radius: 50%;
+  position: fixed;
+  pointer-events: none;
+  z-index: 99999;
+  transition: transform 0.05s;
+}
+.cursor.hover { transform: scale(2.5); background: rgba(0,240,255,0.2); }
+
+/* LOADING SCREEN */
+.loader {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 100000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.8s, visibility 0.8s;
+}
+.loader.hidden { opacity: 0; visibility: hidden; }
+.loader-ring {
+  width: 120px;
+  height: 120px;
+  border: 3px solid transparent;
+  border-top-color: var(--neon-cyan);
+  border-right-color: var(--neon-pink);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  position: relative;
+}
+.loader-ring::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 3px solid transparent;
+  border-bottom-color: var(--neon-purple);
+  border-left-color: var(--neon-green);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite reverse;
+}
+.loader-ring::after {
+  content: '';
+  position: absolute;
+  inset: 20px;
+  border: 2px solid transparent;
+  border-top-color: var(--neon-orange);
+  border-radius: 50%;
+  animation: spin 1.2s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loader-text {
+  font-family: 'Orbitron', monospace;
+  font-size: 14px;
+  color: var(--neon-cyan);
+  letter-spacing: 8px;
+  margin-top: 40px;
+  animation: glitch 0.3s infinite;
+}
+.loader-bar {
+  width: 300px;
+  height: 2px;
+  background: rgba(255,255,255,0.1);
+  margin-top: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.loader-bar::after {
+  content: '';
+  position: absolute;
+  left: -50%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--neon-cyan), var(--neon-pink), transparent);
+  animation: loadBar 1.5s ease-in-out infinite;
+}
+@keyframes loadBar { to { left: 100%; } }
+
+/* MATRIX RAIN CANVAS */
+#matrixCanvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  opacity: 0.15;
+}
+
+/* PARTICLE CANVAS */
+#particleCanvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* HERO SECTION */
+.hero {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse at 20% 50%, rgba(0,240,255,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 50%, rgba(255,0,170,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(180,0,255,0.06) 0%, transparent 50%);
+  animation: bgPulse 8s ease-in-out infinite alternate;
+}
+@keyframes bgPulse {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(30deg); }
+}
+
+.hero-title {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(60px, 12vw, 180px);
+  font-weight: 900;
+  letter-spacing: 20px;
+  text-align: center;
+  position: relative;
+  background: linear-gradient(135deg, var(--neon-cyan), var(--neon-pink), var(--neon-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: titleGlow 3s ease-in-out infinite alternate;
+  text-shadow: none;
+}
+@keyframes titleGlow {
+  0% { filter: drop-shadow(0 0 20px rgba(0,240,255,0.5)); }
+  50% { filter: drop-shadow(0 0 40px rgba(255,0,170,0.5)); }
+  100% { filter: drop-shadow(0 0 20px rgba(180,0,255,0.5)); }
+}
+
+.hero-title::before {
+  content: 'NEXUS';
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  background: linear-gradient(135deg, var(--neon-pink), var(--neon-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  z-index: -1;
+  animation: glitch 2s infinite;
+}
+
+.hero-subtitle {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: clamp(12px, 2vw, 18px);
+  letter-spacing: 12px;
+  color: rgba(255,255,255,0.4);
+  margin-top: 20px;
+  text-transform: uppercase;
+}
+
+.hero-line {
+  width: 200px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+  margin: 30px 0;
+  animation: linePulse 2s ease-in-out infinite;
+}
+@keyframes linePulse {
+  0%, 100% { opacity: 0.3; transform: scaleX(0.5); }
+  50% { opacity: 1; transform: scaleX(1); }
+}
+
+.scroll-indicator {
+  position: absolute;
+  bottom: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  animation: bounce 2s infinite;
+}
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(10px); }
+}
+.scroll-indicator span {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 4px;
+  color: rgba(255,255,255,0.3);
+}
+.scroll-arrow {
+  width: 20px;
+  height: 20px;
+  border-right: 2px solid var(--neon-cyan);
+  border-bottom: 2px solid var(--neon-cyan);
+  transform: rotate(45deg);
+  opacity: 0.5;
+}
+
+/* GLITCH TEXT */
+@keyframes glitch {
+  0%, 90%, 100% { clip-path: inset(0 0 0 0); transform: translate(0); }
+  92% { clip-path: inset(20% 0 60% 0); transform: translate(-3px, 2px); }
+  94% { clip-path: inset(60% 0 10% 0); transform: translate(3px, -2px); }
+  96% { clip-path: inset(40% 0 30% 0); transform: translate(-2px, 1px); }
+  98% { clip-path: inset(80% 0 5% 0); transform: translate(2px, -1px); }
+}
+
+/* SECTIONS */
+section {
+  min-height: 100vh;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 5vw;
+}
+
+/* STATS SECTION */
+.stats-section {
+  background: linear-gradient(180deg, transparent, rgba(0,240,255,0.02), transparent);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 30px;
+  max-width: 1200px;
+  width: 100%;
+}
+
+.stat-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(0,240,255,0.1);
+  padding: 40px 30px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s;
+  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+  transition: left 0.5s;
+}
+.stat-card:hover::before { left: 100%; }
+.stat-card:hover {
+  border-color: var(--neon-cyan);
+  background: rgba(0,240,255,0.05);
+  transform: translateY(-5px);
+  box-shadow: 0 20px 40px rgba(0,240,255,0.1);
+}
+
+.stat-number {
+  font-family: 'Orbitron', monospace;
+  font-size: 48px;
+  font-weight: 900;
+  background: linear-gradient(135deg, var(--neon-cyan), var(--neon-pink));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.stat-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 4px;
+  color: rgba(255,255,255,0.4);
+  margin-top: 10px;
+}
+
+/* FEATURES SECTION */
+.features-section {
+  background: linear-gradient(180deg, transparent, rgba(255,0,170,0.02), transparent);
+}
+
+.features-container {
+  max-width: 1400px;
+  width: 100%;
+}
+
+.section-title {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(36px, 6vw, 72px);
+  font-weight: 900;
+  text-align: center;
+  margin-bottom: 60px;
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+.section-title span {
+  background: linear-gradient(135deg, var(--neon-pink), var(--neon-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 40px;
+}
+
+.feature-card {
+  position: relative;
+  padding: 40px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.05);
+  transition: all 0.5s;
+  overflow: hidden;
+}
+.feature-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(0,240,255,0.1), rgba(255,0,170,0.1));
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+.feature-card:hover::before { opacity: 1; }
+.feature-card:hover {
+  transform: scale(1.02);
+  border-color: var(--neon-cyan);
+}
+
+.feature-icon {
+  font-size: 48px;
+  margin-bottom: 20px;
+  filter: drop-shadow(0 0 10px currentColor);
+}
+
+.feature-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 15px;
+  color: var(--neon-cyan);
+}
+
+.feature-desc {
+  font-size: 16px;
+  line-height: 1.8;
+  color: rgba(255,255,255,0.6);
+}
+
+/* HOLOGRAPHIC SECTION */
+.holo-section {
+  perspective: 1000px;
+}
+
+.holo-container {
+  width: 600px;
+  height: 600px;
+  position: relative;
+  transform-style: preserve-3d;
+  animation: holoRotate 20s linear infinite;
+}
+@keyframes holoRotate {
+  0% { transform: rotateY(0deg) rotateX(10deg); }
+  100% { transform: rotateY(360deg) rotateX(10deg); }
+}
+
+.holo-ring {
+  position: absolute;
+  border: 2px solid;
+  border-radius: 50%;
+  animation: ringPulse 3s ease-in-out infinite;
+}
+.holo-ring:nth-child(1) {
+  inset: 0;
+  border-color: var(--neon-cyan);
+  animation-delay: 0s;
+}
+.holo-ring:nth-child(2) {
+  inset: 50px;
+  border-color: var(--neon-pink);
+  animation-delay: 0.5s;
+}
+.holo-ring:nth-child(3) {
+  inset: 100px;
+  border-color: var(--neon-purple);
+  animation-delay: 1s;
+}
+.holo-ring:nth-child(4) {
+  inset: 150px;
+  border-color: var(--neon-green);
+  animation-delay: 1.5s;
+}
+.holo-ring:nth-child(5) {
+  inset: 200px;
+  border-color: var(--neon-orange);
+  animation-delay: 2s;
+}
+@keyframes ringPulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+.holo-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: 'Orbitron', monospace;
+  font-size: 24px;
+  color: var(--neon-cyan);
+  text-shadow: 0 0 30px var(--neon-cyan);
+  animation: textGlow 2s ease-in-out infinite alternate;
+}
+@keyframes textGlow {
+  0% { text-shadow: 0 0 30px var(--neon-cyan); }
+  100% { text-shadow: 0 0 60px var(--neon-cyan), 0 0 90px var(--neon-pink); }
+}
+
+/* TERMINAL SECTION */
+.terminal-section {
+  background: linear-gradient(180deg, transparent, rgba(0,255,136,0.02), transparent);
+}
+
+.terminal {
+  width: 100%;
+  max-width: 900px;
+  background: rgba(0,0,0,0.8);
+  border: 1px solid rgba(0,255,136,0.3);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 40px rgba(0,255,136,0.1);
+}
+
+.terminal-header {
+  background: rgba(0,255,136,0.1);
+  padding: 12px 16px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.terminal-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.terminal-dot:nth-child(1) { background: #ff5f56; }
+.terminal-dot:nth-child(2) { background: #ffbd2e; }
+.terminal-dot:nth-child(3) { background: #27c93f; }
+.terminal-title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  color: rgba(255,255,255,0.5);
+  margin-left: 12px;
+}
+
+.terminal-body {
+  padding: 20px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--neon-green);
+  min-height: 300px;
+}
+
+.terminal-line {
+  opacity: 0;
+  animation: typeIn 0.3s forwards;
+}
+.terminal-line::before {
+  content: '> ';
+  color: var(--neon-cyan);
+}
+@keyframes typeIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.cursor-blink {
+  display: inline-block;
+  width: 10px;
+  height: 16px;
+  background: var(--neon-green);
+  animation: blink 1s step-end infinite;
+  vertical-align: middle;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* 3D FLOATING CARDS */
+.float-section {
+  perspective: 1500px;
+}
+
+.float-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 30px;
+  max-width: 1000px;
+}
+
+.float-card {
+  aspect-ratio: 1;
+  background: linear-gradient(135deg, rgba(0,240,255,0.1), rgba(255,0,170,0.1));
+  border: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Orbitron', monospace;
+  font-size: 48px;
+  transition: all 0.5s;
+  transform-style: preserve-3d;
+  position: relative;
+  overflow: hidden;
+}
+.float-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(45deg, transparent 40%, rgba(255,255,255,0.1) 50%, transparent 60%);
+  transform: translateX(-100%);
+  transition: transform 0.6s;
+}
+.float-card:hover::before { transform: translateX(100%); }
+.float-card:hover {
+  transform: rotateY(15deg) rotateX(-10deg) scale(1.05);
+  border-color: var(--neon-cyan);
+  box-shadow: -20px 20px 60px rgba(0,240,255,0.2);
+}
+
+/* AUDIO VISUALIZER */
+.visualizer-section {
+  background: linear-gradient(180deg, transparent, rgba(180,0,255,0.02), transparent);
+}
+
+.visualizer-container {
+  width: 100%;
+  max-width: 1000px;
+  height: 300px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+}
+
+.viz-bar {
+  width: 8px;
+  background: linear-gradient(180deg, var(--neon-cyan), var(--neon-pink), var(--neon-purple));
+  border-radius: 4px 4px 0 0;
+  animation: vizPulse 0.5s ease-in-out infinite alternate;
+  transition: height 0.1s;
+}
+@keyframes vizPulse {
+  0% { filter: brightness(0.8); }
+  100% { filter: brightness(1.2); }
+}
+
+/* WARP SPEED SECTION */
+.warp-section {
+  overflow: hidden;
+  position: relative;
+}
+
+#warpCanvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.warp-content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+
+.warp-title {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(48px, 8vw, 120px);
+  font-weight: 900;
+  background: linear-gradient(135deg, #fff, var(--neon-cyan), var(--neon-pink), var(--neon-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: warpPulse 2s ease-in-out infinite alternate;
+}
+@keyframes warpPulse {
+  0% { filter: drop-shadow(0 0 20px rgba(0,240,255,0.5)); letter-spacing: 20px; }
+  100% { filter: drop-shadow(0 0 60px rgba(255,0,170,0.8)); letter-spacing: 40px; }
+}
+
+/* CONTACT SECTION */
+.contact-section {
+  background: linear-gradient(180deg, transparent, rgba(255,102,0,0.02), transparent);
+}
+
+.contact-form {
+  max-width: 600px;
+  width: 100%;
+}
+
+.form-group {
+  margin-bottom: 30px;
+  position: relative;
+}
+
+.form-input {
+  width: 100%;
+  padding: 20px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 18px;
+  transition: all 0.3s;
+  outline: none;
+}
+.form-input:focus {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 20px rgba(0,240,255,0.2);
+}
+.form-input::placeholder {
+  color: rgba(255,255,255,0.3);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  letter-spacing: 2px;
+}
+
+.form-label {
+  position: absolute;
+  top: -10px;
+  left: 20px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--neon-cyan);
+  background: var(--bg-void);
+  padding: 0 10px;
+}
+
+.submit-btn {
+  width: 100%;
+  padding: 20px;
+  background: transparent;
+  border: 2px solid var(--neon-cyan);
+  color: var(--neon-cyan);
+  font-family: 'Orbitron', monospace;
+  font-size: 16px;
+  letter-spacing: 6px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s;
+}
+.submit-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+  transition: left 0.5s;
+}
+.submit-btn:hover::before { left: 100%; }
+.submit-btn:hover {
+  background: rgba(0,240,255,0.1);
+  box-shadow: 0 0 40px rgba(0,240,255,0.3);
+}
+
+/* FOOTER */
+footer {
+  padding: 60px 5vw;
+  text-align: center;
+  position: relative;
+  z-index: 2;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+.footer-logo {
+  font-family: 'Orbitron', monospace;
+  font-size: 24px;
+  font-weight: 900;
+  background: linear-gradient(135deg, var(--neon-cyan), var(--neon-pink));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 20px;
+}
+
+.footer-links {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  margin-bottom: 30px;
+}
+
+.footer-link {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: rgba(255,255,255,0.4);
+  text-decoration: none;
+  transition: color 0.3s;
+}
+.footer-link:hover { color: var(--neon-cyan); }
+
+.footer-copy {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: rgba(255,255,255,0.2);
+  letter-spacing: 2px;
+}
+
+/* NOISE OVERLAY */
+.noise {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+/* SCANLINES */
+.scanlines {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.1) 2px,
+    rgba(0,0,0,0.1) 4px
+  );
+}
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .float-grid { grid-template-columns: repeat(2, 1fr); }
+  .features-grid { grid-template-columns: 1fr; }
+  .hero-title { letter-spacing: 10px; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING SCREEN -->
+<div class="loader" id="loader">
+  <div class="loader-ring"></div>
+  <div class="loader-text">INITIALIZING</div>
+  <div class="loader-bar"></div>
+</div>
+
+<!-- CURSOR -->
+<div class="cursor" id="cursor"></div>
+<div class="cursor-dot" id="cursorDot"></div>
+
+<!-- CANVASES -->
+<canvas id="matrixCanvas"></canvas>
+<canvas id="particleCanvas"></canvas>
+
+<!-- NOISE & SCANLINES -->
+<div class="noise"></div>
+<div class="scanlines"></div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-subtitle">BEYOND THE KNOWN UNIVERSE</div>
+  <h1 class="hero-title">NEXUS</h1>
+  <div class="hero-line"></div>
+  <div class="hero-subtitle">WHERE REALITY BENDS TO YOUR WILL</div>
+  <div class="scroll-indicator">
+    <span>SCROLL TO EXPLORE</span>
+    <div class="scroll-arrow"></div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section class="stats-section">
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-number" data-target="99.9">0</div>
+      <div class="stat-label">REALITY DISTORTION %</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number" data-target="∞">0</div>
+      <div class="stat-label">DIMENSIONS ACCESSIBLE</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number" data-target="0">0</div>
+      <div class="stat-label">LIMITS DETECTED</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number" data-target="42">0</div>
+      <div class="stat-label">COSMIC FREQUENCY</div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features-section">
+  <div class="features-container">
+    <h2 class="section-title"><span>POWERS</span></h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <div class="feature-title">QUANTUM FLUX</div>
+        <div class="feature-desc">Harness the power of quantum entanglement to transcend physical limitations. Your reality, your rules.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🌀</div>
+        <div class="feature-title">DIMENSIONAL RIFT</div>
+        <div class="feature-desc">Tear through the fabric of spacetime. Access parallel universes and alternate timelines at will.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔮</div>
+        <div class="feature-title">NEURAL SYNC</div>
+        <div class="feature-desc">Direct brain-computer interface. Think it, manifest it. The boundary between mind and machine dissolves.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💎</div>
+        <div class="feature-title">CRYSTAL MATRIX</div>
+        <div class="feature-desc">Advanced crystalline computation. Process infinite data streams through quantum crystal lattices.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🌊</div>
+        <div class="feature-title">WAVE COLLAPSE</div>
+        <div class="feature-desc">Control probability fields. Collapse wave functions to manifest desired outcomes from infinite possibilities.</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔥</div>
+        <div class="feature-title">SINGULARITY CORE</div>
+        <div class="feature-desc">Harness the energy of artificial singularities. Unlimited power at your fingertips, controlled chaos.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOLOGRAPHIC -->
+<section class="holo-section">
+  <div class="holo-container">
+    <div class="holo-ring"></div>
+    <div class="holo-ring"></div>
+    <div class="holo-ring"></div>
+    <div class="holo-ring"></div>
+    <div class="holo-ring"></div>
+    <div class="holo-center">NEXUS</div>
+  </div>
+</section>
+
+<!-- TERMINAL -->
+<section class="terminal-section">
+  <div class="terminal">
+    <div class="terminal-header">
+      <div class="terminal-dot"></div>
+      <div class="terminal-dot"></div>
+      <div class="terminal-dot"></div>
+      <span class="terminal-title">nexus@void:~</span>
+    </div>
+    <div class="terminal-body" id="terminalBody">
+    </div>
+  </div>
+</section>
+
+<!-- 3D FLOATING -->
+<section class="float-section">
+  <div class="float-grid">
+    <div class="float-card">⟨⟩</div>
+    <div class="float-card">∞</div>
+    <div class="float-card">◈</div>
+    <div class="float-card">⟁</div>
+    <div class="float-card">⧫</div>
+    <div class="float-card">⟡</div>
+  </div>
+</section>
+
+<!-- VISUALIZER -->
+<section class="visualizer-section">
+  <div class="visualizer-container" id="visualizer">
+  </div>
+</section>
+
+<!-- WARP SPEED -->
+<section class="warp-section">
+  <canvas id="warpCanvas"></canvas>
+  <div class="warp-content">
+    <div class="warp-title">BEYOND</div>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section class="contact-section">
+  <div class="contact-form">
+    <h2 class="section-title"><span>TRANSMIT</span></h2>
+    <div class="form-group">
+      <span class="form-label">IDENTIFIER</span>
+      <input type="text" class="form-input" placeholder="YOUR NAME">
+    </div>
+    <div class="form-group">
+      <span class="form-label">SIGNAL FREQUENCY</span>
+      <input type="email" class="form-input" placeholder="YOUR EMAIL">
+    </div>
+    <div class="form-group">
+      <span class="form-label">MESSAGE PACKET</span>
+      <textarea class="form-input" rows="5" placeholder="YOUR MESSAGE"></textarea>
+    </div>
+    <button class="submit-btn">TRANSMIT SIGNAL</button>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">NEXUS</div>
+  <div class="footer-links">
+    <a href="#" class="footer-link">REALM</a>
+    <a href="#" class="footer-link">PORTAL</a>
+    <a href="#" class="footer-link">ARCHIVE</a>
+    <a href="#" class="footer-link">SIGNAL</a>
+  </div>
+  <div class="footer-copy">© 2026 NEXUS — ALL DIMENSIONS RESERVED</div>
+</footer>
+
+<script>
+// LOADER
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    document.getElementById('loader').classList.add('hidden');
+  }, 2500);
+});
+
+// CUSTOM CURSOR
+const cursor = document.getElementById('cursor');
+const cursorDot = document.getElementById('cursorDot');
+let mouseX = 0, mouseY = 0;
+let cursorX = 0, cursorY = 0;
+
+document.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+  cursorDot.style.left = mouseX - 3 + 'px';
+  cursorDot.style.top = mouseY - 3 + 'px';
+});
+
+function animateCursor() {
+  cursorX += (mouseX - cursorX) * 0.15;
+  cursorY += (mouseY - cursorY) * 0.15;
+  cursor.style.left = cursorX - 10 + 'px';
+  cursor.style.top = cursorY - 10 + 'px';
+  requestAnimationFrame(animateCursor);
+}
+animateCursor();
+
+document.querySelectorAll('a, button, .feature-card, .stat-card, .float-card').forEach(el => {
+  el.addEventListener('mouseenter', () => cursor.classList.add('hover'));
+  el.addEventListener('mouseleave', () => cursor.classList.remove('hover'));
+});
+
+// MATRIX RAIN
+const matrixCanvas = document.getElementById('matrixCanvas');
+const mCtx = matrixCanvas.getContext('2d');
+
+function resizeMatrix() {
+  matrixCanvas.width = window.innerWidth;
+  matrixCanvas.height = window.innerHeight;
+}
+resizeMatrix();
+window.addEventListener('resize', resizeMatrix);
+
+const matrixChars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ABCDEF';
+const fontSize = 14;
+let columns = Math.floor(matrixCanvas.width / fontSize);
+let drops = Array(columns).fill(1);
+
+function drawMatrix() {
+  mCtx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+  mCtx.fillRect(0, 0, matrixCanvas.width, matrixCanvas.height);
+  mCtx.fillStyle = '#00f0ff';
+  mCtx.font = fontSize + 'px monospace';
+  
+  for (let i = 0; i < drops.length; i++) {
+    const text = matrixChars[Math.floor(Math.random() * matrixChars.length)];
+    mCtx.fillStyle = `hsl(${180 + Math.random() * 40}, 100%, ${50 + Math.random() * 20}%)`;
+    mCtx.fillText(text, i * fontSize, drops[i] * fontSize);
+    
+    if (drops[i] * fontSize > matrixCanvas.height && Math.random() > 0.975) {
+      drops[i] = 0;
+    }
+    drops[i]++;
+  }
+}
+setInterval(drawMatrix, 50);
+
+// PARTICLES
+const particleCanvas = document.getElementById('particleCanvas');
+const pCtx = particleCanvas.getContext('2d');
+
+function resizeParticles() {
+  particleCanvas.width = window.innerWidth;
+  particleCanvas.height = window.innerHeight;
+}
+resizeParticles();
+window.addEventListener('resize', resizeParticles);
+
+const particles = [];
+const particleCount = 100;
+
+for (let i = 0; i < particleCount; i++) {
+  particles.push({
+    x: Math.random() * particleCanvas.width,
+    y: Math.random() * particleCanvas.height,
+    vx: (Math.random() - 0.5) * 0.5,
+    vy: (Math.random() - 0.5) * 0.5,
+    size: Math.random() * 2 + 0.5,
+    color: `hsl(${Math.random() * 60 + 170}, 100%, 70%)`
+  });
+}
+
+function drawParticles() {
+  pCtx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+  
+  particles.forEach((p, i) => {
+    p.x += p.vx;
+    p.y += p.vy;
+    
+    if (p.x < 0 || p.x > particleCanvas.width) p.vx *= -1;
+    if (p.y < 0 || p.y > particleCanvas.height) p.vy *= -1;
+    
+    pCtx.beginPath();
+    pCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    pCtx.fillStyle = p.color;
+    pCtx.fill();
+    
+    // Connect nearby particles
+    for (let j = i + 1; j < particles.length; j++) {
+      const dx = p.x - particles[j].x;
+      const dy = p.y - particles[j].y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      if (dist < 150) {
+        pCtx.beginPath();
+        pCtx.moveTo(p.x, p.y);
+        pCtx.lineTo(particles[j].x, particles[j].y);
+        pCtx.strokeStyle = `rgba(0, 240, 255, ${0.1 * (1 - dist / 150)})`;
+        pCtx.stroke();
+      }
+    }
+  });
+  
+  requestAnimationFrame(drawParticles);
+}
+drawParticles();
+
+// WARP SPEED
+const warpCanvas = document.getElementById('warpCanvas');
+const wCtx = warpCanvas.getContext('2d');
+
+function resizeWarp() {
+  warpCanvas.width = warpCanvas.parentElement.offsetWidth;
+  warpCanvas.height = warpCanvas.parentElement.offsetHeight;
+}
+resizeWarp();
+window.addEventListener('resize', resizeWarp);
+
+const stars = [];
+const starCount = 400;
+
+for (let i = 0; i < starCount; i++) {
+  stars.push({
+    x: (Math.random() - 0.5) * 2000,
+    y: (Math.random() - 0.5) * 2000,
+    z: Math.random() * 1500,
+    pz: 0
+  });
+}
+
+function drawWarp() {
+  wCtx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+  wCtx.fillRect(0, 0, warpCanvas.width, warpCanvas.height);
+  
+  const cx = warpCanvas.width / 2;
+  const cy = warpCanvas.height / 2;
+  
+  stars.forEach(star => {
+    star.z -= 8;
+    
+    if (star.z <= 0) {
+      star.x = (Math.random() - 0.5) * 2000;
+      star.y = (Math.random() - 0.5) * 2000;
+      star.z = 1500;
+      star.pz = 1500;
+    }
+    
+    const sx = (star.x / star.z) * 300 + cx;
+    const sy = (star.y / star.z) * 300 + cy;
+    const px = (star.x / star.pz) * 300 + cx;
+    const py = (star.y / star.pz) * 300 + cy;
+    
+    star.pz = star.z;
+    
+    const size = (1 - star.z / 1500) * 3;
+    const alpha = 1 - star.z / 1500;
+    
+    wCtx.beginPath();
+    wCtx.moveTo(px, py);
+    wCtx.lineTo(sx, sy);
+    wCtx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+    wCtx.lineWidth = size;
+    wCtx.stroke();
+  });
+  
+  requestAnimationFrame(drawWarp);
+}
+drawWarp();
+
+// TERMINAL TYPING
+const terminalLines = [
+  'NEXUS SYSTEM v4.2.0 — QUANTUM EDITION',
+  'Initializing dimensional bridges...',
+  'Loading quantum flux generators...',
+  'Neural sync protocols: ACTIVE',
+  'Crystal matrix calibration: 99.97%',
+  'Singularity core: STABLE',
+  'All systems: OPERATIONAL',
+  'Welcome to the beyond.'
+];
+
+const terminalBody = document.getElementById('terminalBody');
+let lineIndex = 0;
+
+function typeLine() {
+  if (lineIndex < terminalLines.length) {
+    const line = document.createElement('div');
+    line.className = 'terminal-line';
+    line.textContent = terminalLines[lineIndex];
+    line.style.animationDelay = '0s';
+    terminalBody.appendChild(line);
+    lineIndex++;
+    setTimeout(typeLine, 400 + Math.random() * 300);
+  } else {
+    const cursor = document.createElement('span');
+    cursor.className = 'cursor-blink';
+    terminalBody.appendChild(cursor);
+  }
+}
+
+// Start terminal when visible
+const terminalObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      typeLine();
+      terminalObserver.disconnect();
+    }
+  });
+}, { threshold: 0.5 });
+terminalObserver.observe(document.querySelector('.terminal'));
+
+// AUDIO VISUALIZER
+const visualizer = document.getElementById('visualizer');
+const barCount = 60;
+
+for (let i = 0; i < barCount; i++) {
+  const bar = document.createElement('div');
+  bar.className = 'viz-bar';
+  bar.style.animationDelay = (i * 0.05) + 's';
+  visualizer.appendChild(bar);
+}
+
+function animateVisualizer() {
+  const bars = visualizer.children;
+  for (let i = 0; i < bars.length; i++) {
+    const height = 20 + Math.random() * 200;
+    bars[i].style.height = height + 'px';
+  }
+  setTimeout(animateVisualizer, 100);
+}
+animateVisualizer();
+
+// SCROLL ANIMATIONS
+const observerOptions = {
+  threshold: 0.1,
+  rootMargin: '0px 0px -50px 0px'
+};
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.style.opacity = '1';
+      entry.target.style.transform = 'translateY(0)';
+    }
+  });
+}, observerOptions);
+
+document.querySelectorAll('.stat-card, .feature-card, .float-card').forEach(el => {
+  el.style.opacity = '0';
+  el.style.transform = 'translateY(30px)';
+  el.style.transition = 'opacity 0.6s, transform 0.6s';
+  observer.observe(el);
+});
+
+// PARALLAX
+document.addEventListener('mousemove', (e) => {
+  const moveX = (e.clientX - window.innerWidth / 2) * 0.01;
+  const moveY = (e.clientY - window.innerHeight / 2) * 0.01;
+  
+  document.querySelector('.hero-title').style.transform = 
+    `translate(${moveX}px, ${moveY}px)`;
+});
+
+// MOUSE TRAIL
+const trail = [];
+const trailLength = 20;
+
+for (let i = 0; i < trailLength; i++) {
+  const dot = document.createElement('div');
+  dot.style.cssText = `
+    position: fixed;
+    width: ${4 - i * 0.15}px;
+    height: ${4 - i * 0.15}px;
+    background: hsl(${180 + i * 5}, 100%, 60%);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 99998;
+    transition: transform 0.1s;
+  `;
+  document.body.appendChild(dot);
+  trail.push({ el: dot, x: 0, y: 0 });
+}
+
+document.addEventListener('mousemove', (e) => {
+  trail[0].x = e.clientX;
+  trail[0].y = e.clientY;
+});
+
+function animateTrail() {
+  for (let i = trail.length - 1; i > 0; i--) {
+    trail[i].x += (trail[i-1].x - trail[i].x) * 0.3;
+    trail[i].y += (trail[i-1].y - trail[i].y) * 0.3;
+    trail[i].el.style.left = trail[i].x + 'px';
+    trail[i].el.style.top = trail[i].y + 'px';
+  }
+  requestAnimationFrame(animateTrail);
+}
+animateTrail();
+
+// GLITCH EFFECT ON HOVER
+document.querySelectorAll('.hero-title, .warp-title').forEach(el => {
+  el.addEventListener('mouseenter', () => {
+    el.style.animation = 'none';
+    setTimeout(() => {
+      el.style.animation = '';
+    }, 100);
+  });
+});
+
+// EASTER EGG - KONAMI CODE
+let konamiSequence = [];
+const konamiCode = [38, 38, 40, 40, 37, 39, 37, 39, 66, 65];
+
+document.addEventListener('keydown', (e) => {
+  konamiSequence.push(e.keyCode);
+  if (konamiSequence.length > 10) konamiSequence.shift();
+  
+  if (JSON.stringify(konamiSequence) === JSON.stringify(konamiCode)) {
+    document.body.style.animation = 'rgbShift 0.5s linear 3';
+    setTimeout(() => {
+      document.body.style.animation = '';
+    }, 1500);
+  }
+});
+
+// Add RGB shift animation
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes rgbShift {
+    0% { filter: none; }
+    25% { filter: hue-rotate(90deg); }
+    50% { filter: hue-rotate(180deg); }
+    75% { filter: hue-rotate(270deg); }
+    100% { filter: hue-rotate(360deg); }
+  }
+`;
+document.head.appendChild(style);
+</script>
+
+</body>
+</html>

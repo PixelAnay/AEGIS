@@ -1,0 +1,1969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AEGIS — Urban Drone Response Command</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;800&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  :root {
+    --bg-base: #030810;
+    --bg-panel: #060d1a;
+    --bg-card: #091525;
+    --bg-hover: #0d1e35;
+    --accent-primary: #00e5ff;
+    --accent-danger: #ff3b3b;
+    --accent-warn: #ffb800;
+    --accent-ok: #00ff88;
+    --accent-drone: #7b5fff;
+    --grid-line: rgba(0, 229, 255, 0.06);
+    --border: rgba(0, 229, 255, 0.15);
+    --border-hot: rgba(255, 59, 59, 0.5);
+    --text-primary: #e0f4ff;
+    --text-secondary: #5a8aaa;
+    --text-dim: #2a4a65;
+    --glow-cyan: 0 0 20px rgba(0, 229, 255, 0.3);
+    --glow-red: 0 0 20px rgba(255, 59, 59, 0.4);
+    --glow-green: 0 0 20px rgba(0, 255, 136, 0.3);
+    --col-left: 260px;
+    --col-right: 280px;
+    --row-bottom: 210px;
+    --col-collapsed: 36px;
+    --header-h: 38px;
+    --log-w: 280px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Barlow Condensed', sans-serif;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    cursor: default;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    pointer-events: none;
+    z-index: 9000;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    height: 52px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(90deg, rgba(0,229,255,0.04), transparent, rgba(0,229,255,0.04));
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 60%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+    animation: scanH 4s linear infinite;
+  }
+  @keyframes scanH { to { left: 200%; } }
+
+  .header-brand { display: flex; align-items: center; gap: 12px; }
+  .brand-logo { width: 32px; height: 32px; position: relative; }
+  .brand-logo svg { width: 100%; height: 100%; }
+
+  .brand-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: 6px;
+    color: var(--accent-primary);
+    text-shadow: var(--glow-cyan);
+  }
+
+  .brand-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-secondary);
+    letter-spacing: 2px;
+  }
+
+  .header-status { display: flex; gap: 24px; align-items: center; }
+
+  .hstat {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .hstat .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent-ok);
+    box-shadow: 0 0 6px var(--accent-ok);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .hstat .dot.red { background: var(--accent-danger); box-shadow: 0 0 6px var(--accent-danger); }
+  .hstat .dot.dim { background: var(--text-dim); box-shadow: none; animation: none; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .clock {
+    font-family: 'Orbitron', monospace;
+    font-size: 14px;
+    color: var(--accent-primary);
+    letter-spacing: 2px;
+  }
+
+  /* MAIN LAYOUT */
+  .main {
+    display: flex;
+    flex-direction: row;
+    gap: 1px;
+    flex: 1;
+    background: var(--grid-line);
+    overflow: hidden;
+  }
+
+  .center-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .top-row {
+    flex: 1;
+    display: flex;
+    gap: 1px;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .bottom-row {
+    height: var(--row-bottom);
+    display: flex;
+    gap: 1px;
+    flex-shrink: 0;
+    transition: height 0.22s ease;
+    overflow: hidden;
+  }
+  .bottom-row.collapsed { height: var(--header-h); }
+
+  .panel {
+    background: var(--bg-panel);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-header {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .panel-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+  }
+
+  .panel-badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    letter-spacing: 1px;
+  }
+  .badge-red { background: rgba(255,59,59,0.15); color: var(--accent-danger); border: 1px solid rgba(255,59,59,0.3); }
+  .badge-cyan { background: rgba(0,229,255,0.08); color: var(--accent-primary); border: 1px solid rgba(0,229,255,0.2); }
+  .badge-green { background: rgba(0,255,136,0.08); color: var(--accent-ok); border: 1px solid rgba(0,255,136,0.2); }
+
+  /* LEFT PANEL */
+  .fleet-panel {
+    width: var(--col-left);
+    transition: width 0.22s ease;
+    flex-shrink: 0;
+  }
+
+  .drone-list { overflow-y: auto; flex: 1; padding: 8px; }
+
+  .drone-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .drone-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--accent-ok);
+    transition: background 0.3s;
+  }
+  .drone-card.dispatched::before { background: var(--accent-drone); animation: pulse 1s infinite; }
+  .drone-card.alert::before { background: var(--accent-danger); animation: pulse 0.5s infinite; }
+  .drone-card.low-battery::before { background: var(--accent-warn); }
+  .drone-card:hover { background: var(--bg-hover); border-color: rgba(0,229,255,0.3); }
+
+  .drone-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .drone-id { font-family: 'Orbitron', monospace; font-size: 13px; font-weight: 700; color: var(--text-primary); }
+
+  .drone-status-tag {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    letter-spacing: 1px;
+  }
+  .status-standby { background: rgba(0,255,136,0.1); color: var(--accent-ok); border: 1px solid rgba(0,255,136,0.25); }
+  .status-dispatched { background: rgba(123,95,255,0.2); color: #a78bfa; border: 1px solid rgba(123,95,255,0.4); animation: pulse 1.5s infinite; }
+  .status-returning { background: rgba(255,184,0,0.1); color: var(--accent-warn); border: 1px solid rgba(255,184,0,0.3); }
+  .status-charging { background: rgba(90,138,170,0.1); color: var(--text-secondary); border: 1px solid rgba(90,138,170,0.2); }
+
+  .drone-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .metric { font-size: 11px; color: var(--text-secondary); }
+  .metric-val { color: var(--text-primary); font-weight: 600; }
+
+  .battery-bar { height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+  .battery-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
+  .bat-high { background: var(--accent-ok); box-shadow: 0 0 6px rgba(0,255,136,0.5); }
+  .bat-mid { background: var(--accent-warn); }
+  .bat-low { background: var(--accent-danger); }
+
+  /* MAP PANEL */
+  .map-panel {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #leafletMap {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+
+  /* Leaflet dark theme overrides */
+  .leaflet-container { background: #030810 !important; }
+  .leaflet-tile-pane { filter: brightness(1.05) saturate(0.85); }
+  .leaflet-control-zoom, .leaflet-control-attribution { display: none !important; }
+
+  .drone-ltooltip {
+    background: rgba(3,8,16,0.92) !important;
+    border: 1px solid rgba(0,229,255,0.35) !important;
+    color: #00e5ff !important;
+    font-family: 'Orbitron', monospace !important;
+    font-size: 8px !important;
+    border-radius: 2px !important;
+    box-shadow: none !important;
+    padding: 2px 6px !important;
+    white-space: nowrap !important;
+  }
+  .drone-ltooltip::before { display: none !important; }
+
+  .leaflet-popup-content-wrapper {
+    background: rgba(3,8,16,0.96) !important;
+    border: 1px solid rgba(255,59,59,0.45) !important;
+    border-radius: 2px !important;
+    box-shadow: 0 0 20px rgba(255,59,59,0.2) !important;
+  }
+  .leaflet-popup-content { color: var(--text-primary) !important; margin: 0 !important; }
+  .leaflet-popup-tip-container { display: none !important; }
+  .leaflet-popup-close-button { color: var(--text-secondary) !important; top: 4px !important; right: 6px !important; }
+
+  /* Drone icon animation */
+  .drone-icon-outer { position: relative; display: flex; align-items: center; justify-content: center; }
+  .drone-icon-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid;
+    animation: droneRing 1.5s ease-out infinite;
+    opacity: 0;
+  }
+  @keyframes droneRing { 0%{transform:scale(0.5);opacity:0.8} 100%{transform:scale(2.5);opacity:0} }
+  .drone-svg-spin { animation: droneSpin 1.8s linear infinite; }
+  @keyframes droneSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+  /* Incident marker animation */
+  .inc-marker-dot {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    animation: incPulse 0.9s ease-in-out infinite alternate;
+    cursor: pointer;
+  }
+  @keyframes incPulse { from{transform:scale(1);opacity:1} to{transform:scale(1.4);opacity:0.6} }
+
+  .map-overlay {
+    position: absolute;
+    top: 12px; left: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: none;
+    z-index: 500;
+  }
+
+  .map-tag {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--text-secondary);
+    letter-spacing: 2px;
+    background: rgba(6,13,26,0.85);
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    backdrop-filter: blur(4px);
+  }
+
+  .coords-display {
+    position: absolute;
+    bottom: 12px; left: 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-secondary);
+    background: rgba(6,13,26,0.9);
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    z-index: 500;
+    pointer-events: none;
+  }
+
+  .map-legend {
+    position: absolute;
+    bottom: 12px; right: 12px;
+    background: rgba(6,13,26,0.9);
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 500;
+    pointer-events: none;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-family: 'Share Tech Mono', monospace; font-size: 9px; color: var(--text-secondary); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* RIGHT PANEL */
+  .incident-panel {
+    width: var(--col-right);
+    transition: width 0.22s ease;
+    flex-shrink: 0;
+  }
+  .incident-list { overflow-y: auto; flex: 1; padding: 8px; }
+
+  .incident-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    animation: slideIn 0.3s ease-out;
+  }
+  @keyframes slideIn { from { opacity:0; transform: translateX(20px); } to { opacity:1; transform:none; } }
+
+  .incident-card.critical {
+    border-color: rgba(255,59,59,0.3);
+    background: rgba(255,59,59,0.04);
+  }
+  .incident-card.critical::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,59,59,0.04), transparent);
+    pointer-events: none;
+  }
+
+  .inc-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+  .inc-type { font-size: 12px; font-weight: 700; color: var(--text-primary); letter-spacing: 0.5px; }
+
+  .severity-tag {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 8px;
+    padding: 2px 6px;
+    border-radius: 1px;
+    letter-spacing: 1px;
+  }
+  .sev-critical { background: rgba(255,59,59,0.2); color: #ff6b6b; border: 1px solid rgba(255,59,59,0.4); }
+  .sev-high { background: rgba(255,184,0,0.15); color: var(--accent-warn); border: 1px solid rgba(255,184,0,0.3); }
+  .sev-medium { background: rgba(0,229,255,0.1); color: var(--accent-primary); border: 1px solid rgba(0,229,255,0.2); }
+
+  .inc-location { font-family: 'Share Tech Mono', monospace; font-size: 9px; color: var(--text-secondary); margin-bottom: 4px; }
+  .inc-dispatch { display: flex; justify-content: space-between; align-items: center; }
+  .inc-drone-assigned { font-family: 'Orbitron', monospace; font-size: 10px; color: var(--accent-drone); }
+  .inc-eta { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--accent-ok); }
+
+  /* BOTTOM PANELS */
+  .video-panel {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    gap: 1px;
+    background: var(--grid-line);
+    overflow: hidden;
+  }
+
+  .feed-container {
+    flex: 1;
+    background: var(--bg-panel);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .feeds-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--grid-line);
+    overflow: hidden;
+  }
+
+  .feed-slot {
+    background: #000;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+  }
+
+  .feed-canvas { width: 100%; height: 100%; display: block; }
+
+  /* Webcam video element */
+  .webcam-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+    z-index: 0;
+    transform: scaleX(-1); /* mirror */
+  }
+
+  /* When webcam active, canvas is overlay */
+  .feed-slot.webcam-active .feed-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: transparent;
+  }
+
+  .feed-label {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.8));
+    padding: 4px 8px 4px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--text-secondary);
+    display: flex;
+    justify-content: space-between;
+    z-index: 2;
+  }
+
+  .feed-alert-overlay {
+    position: absolute;
+    inset: 0;
+    border: 2px solid var(--accent-danger);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+    box-shadow: inset 0 0 20px rgba(255,59,59,0.3);
+    z-index: 3;
+  }
+  .feed-slot.alerting .feed-alert-overlay { opacity: 1; animation: borderPulse 0.5s ease-in-out infinite; }
+  @keyframes borderPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* LOG PANEL */
+  .log-panel {
+    width: var(--log-w);
+    background: var(--bg-panel);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: width 0.22s ease;
+    flex-shrink: 0;
+  }
+
+  .log-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+  }
+
+  .log-entry { display: flex; gap: 8px; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,0.03); animation: logIn 0.3s ease-out; line-height: 1.4; }
+  @keyframes logIn { from{opacity:0; transform: translateY(-4px);} to{opacity:1; transform:none;} }
+  .log-time { color: var(--text-dim); flex-shrink: 0; }
+  .log-msg { color: var(--text-secondary); }
+  .log-msg.warn { color: var(--accent-warn); }
+  .log-msg.alert { color: var(--accent-danger); }
+  .log-msg.ok { color: var(--accent-ok); }
+  .log-msg.dispatch { color: var(--accent-drone); }
+
+  /* Scrollbars */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Sim controls */
+  .sim-controls {
+    display: flex;
+    gap: 8px;
+    padding: 6px 16px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    background: rgba(0,229,255,0.02);
+  }
+
+  .sim-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    padding: 5px 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+  .sim-btn:hover { background: rgba(0,229,255,0.08); border-color: var(--accent-primary); color: var(--accent-primary); }
+  .sim-btn.danger:hover { background: rgba(255,59,59,0.1); border-color: var(--accent-danger); color: var(--accent-danger); }
+  .sim-btn.active { background: rgba(0,229,255,0.12); border-color: var(--accent-primary); color: var(--accent-primary); }
+
+  /* Stats strip */
+  .stat-strip {
+    display: flex;
+    gap: 20px;
+    padding: 0 12px;
+    align-items: center;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    height: 24px;
+    background: rgba(0,0,0,0.3);
+  }
+  .sstrip { font-family: 'Share Tech Mono', monospace; font-size: 9px; color: var(--text-dim); display: flex; gap: 6px; }
+  .sstrip span { color: var(--text-secondary); }
+
+  /* Collapse controls */
+  .collapse-btn {
+    width: 18px; height: 18px;
+    background: transparent;
+    border: 1px solid var(--text-dim);
+    color: var(--text-dim);
+    cursor: pointer;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    flex-shrink: 0;
+    line-height: 1;
+    padding: 0;
+  }
+  .collapse-btn:hover { border-color: var(--accent-primary); color: var(--accent-primary); background: rgba(0,229,255,0.06); }
+
+  .ph-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .ph-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+  .panel-vtitle {
+    display: none;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--text-secondary);
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    text-transform: uppercase;
+    flex: 1;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+  }
+
+  /* Collapsed states */
+  .fleet-panel.collapsed { width: var(--col-collapsed); }
+  .incident-panel.collapsed { width: var(--col-collapsed); }
+  .log-panel.collapsed { width: var(--col-collapsed); }
+
+  .fleet-panel.collapsed > *:not(.panel-header),
+  .incident-panel.collapsed > *:not(.panel-header),
+  .log-panel.collapsed > *:not(.panel-header) { display: none !important; }
+
+  .fleet-panel.collapsed .panel-header,
+  .incident-panel.collapsed .panel-header,
+  .log-panel.collapsed .panel-header {
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    height: 100%;
+    padding: 10px 0;
+    border-bottom: none;
+    gap: 0;
+    overflow: hidden;
+  }
+
+  .fleet-panel.collapsed .panel-header .ph-left .panel-title,
+  .fleet-panel.collapsed .panel-header .ph-right,
+  .incident-panel.collapsed .panel-header .ph-left .panel-title,
+  .incident-panel.collapsed .panel-header .ph-right,
+  .log-panel.collapsed .panel-header .ph-left .panel-title,
+  .log-panel.collapsed .panel-header .ph-right { display: none; }
+
+  .incident-panel.collapsed .panel-header #collapseRight { margin-left: 0; }
+
+  .fleet-panel.collapsed .panel-vtitle,
+  .incident-panel.collapsed .panel-vtitle,
+  .log-panel.collapsed .panel-vtitle { display: flex; }
+
+  .bottom-row.collapsed .log-panel.collapsed .panel-vtitle { display: none; }
+
+  .video-panel.collapsed .feed-container > *:not(.panel-header) { display: none !important; }
+  .video-panel.collapsed .feed-container .panel-header { border-bottom: none; }
+
+  /* Incident popup on map */
+  .incident-popup {
+    position: absolute;
+    background: rgba(3,8,16,0.96);
+    border: 1px solid var(--border-hot);
+    padding: 10px 14px;
+    pointer-events: none;
+    min-width: 160px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    z-index: 500;
+    box-shadow: var(--glow-red);
+  }
+  .popup-title { color: var(--accent-danger); font-size: 10px; letter-spacing: 1px; margin-bottom: 6px; }
+  .popup-row { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 2px; }
+  .popup-key { color: var(--text-dim); }
+  .popup-val { color: var(--text-primary); }
+
+  /* AI detection badge in feed */
+  .ai-live-badge {
+    position: absolute;
+    top: 6px; right: 6px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 8px;
+    padding: 2px 6px;
+    background: rgba(123,95,255,0.2);
+    border: 1px solid rgba(123,95,255,0.5);
+    color: #a78bfa;
+    z-index: 2;
+    letter-spacing: 1px;
+    animation: pulse 1.5s infinite;
+  }
+
+  /* Responsive */
+  @media (max-width: 1024px) {
+    .feeds-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media (max-width: 900px) {
+    body { height: auto; min-height: 100vh; overflow-y: auto; overflow-x: hidden; }
+    .main { flex-direction: column; gap: 4px; padding-bottom: 24px; background: transparent; }
+    .center-right, .top-row, .bottom-row { display: flex; flex-direction: column; height: auto !important; gap: 4px; }
+    .fleet-panel, .incident-panel, .map-panel, .video-panel, .log-panel { width: 100% !important; height: 400px; flex: none; transition: height 0.3s ease !important; border: 1px solid var(--border); }
+    .map-panel { min-height: 400px; }
+    .fleet-panel.collapsed, .incident-panel.collapsed, .log-panel.collapsed, .video-panel.collapsed { height: var(--header-h) !important; width: 100% !important; }
+    .bottom-row.collapsed { height: auto !important; }
+    .fleet-panel.collapsed .panel-header, .incident-panel.collapsed .panel-header, .log-panel.collapsed .panel-header { flex-direction: row; padding: 10px 16px; }
+    .fleet-panel.collapsed .panel-header .ph-left .panel-title, .incident-panel.collapsed .panel-header .ph-left .panel-title, .log-panel.collapsed .panel-header .ph-left .panel-title, .fleet-panel.collapsed .panel-header .ph-right, .incident-panel.collapsed .panel-header .ph-right, .log-panel.collapsed .panel-header .ph-right { display: flex !important; }
+    .panel-vtitle { display: none !important; }
+    #collapseLeft { transform: rotate(90deg); }
+    #collapseRight, #collapseLog { transform: rotate(-90deg); }
+    .sim-controls { flex-wrap: wrap; padding: 10px; gap: 10px; }
+    .sim-btn { flex: 1 1 calc(33% - 10px); padding: 10px; font-size: 11px; text-align: center; }
+    header { height: auto; padding: 12px 16px; flex-direction: column; align-items: flex-start; gap: 12px; }
+    .header-brand { width: 100%; justify-content: space-between; }
+    .header-status { width: 100%; justify-content: flex-start; gap: 16px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid rgba(0,229,255,0.1); }
+    .hstat:nth-child(4), .hstat:nth-child(5) { display: none; }
+    .incident-popup { max-width: 90%; }
+  }
+
+  @media (max-width: 480px) {
+    .fleet-panel, .incident-panel, .map-panel, .video-panel, .log-panel { height: 350px; }
+    .sim-btn { flex: 1 1 100%; }
+    .map-legend { display: none; }
+    .coords-display { font-size: 9px; padding: 4px 8px; }
+    .stat-strip { height: auto; flex-wrap: wrap; padding: 10px 12px; gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-brand">
+    <div class="brand-logo">
+      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="16,2 30,12 30,20 16,30 2,20 2,12" fill="none" stroke="#00e5ff" stroke-width="1.5" opacity="0.6"/>
+        <circle cx="16" cy="16" r="5" fill="none" stroke="#00e5ff" stroke-width="1.5"/>
+        <circle cx="16" cy="16" r="2" fill="#00e5ff"/>
+        <line x1="16" y1="2" x2="16" y2="11" stroke="#00e5ff" stroke-width="1" opacity="0.5"/>
+        <line x1="16" y1="21" x2="16" y2="30" stroke="#00e5ff" stroke-width="1" opacity="0.5"/>
+        <line x1="2" y1="12" x2="11" y2="14.5" stroke="#00e5ff" stroke-width="1" opacity="0.5"/>
+        <line x1="21" y1="17.5" x2="30" y2="20" stroke="#00e5ff" stroke-width="1" opacity="0.5"/>
+      </svg>
+    </div>
+    <div>
+      <div class="brand-name">AEGIS</div>
+      <div class="brand-sub">AUTONOMOUS EMERGENCY GRID & INCIDENT SYSTEM</div>
+    </div>
+  </div>
+
+  <div class="header-status">
+    <div class="hstat"><span class="dot"></span>SYSTEM NOMINAL</div>
+    <div class="hstat"><span class="dot red" id="incidentDot"></span><span id="headerAlert">0 ACTIVE INCIDENTS</span></div>
+    <div class="hstat"><span class="dot dim" id="aiDot"></span><span id="aiStatus">AI: LOADING</span></div>
+    <div class="hstat">GRID: <span style="color:var(--accent-ok)">PUNE SECTOR</span></div>
+    <div class="hstat">COVERAGE: <span style="color:var(--accent-primary)">94.3%</span></div>
+    <div class="clock" id="clockEl">00:00:00</div>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- LEFT: DRONE FLEET -->
+  <div class="panel fleet-panel" id="fleetPanel">
+    <div class="panel-header">
+      <div class="ph-left">
+        <button class="collapse-btn" id="collapseLeft" onclick="togglePanel('left')" title="Collapse panel">◀</button>
+        <span class="panel-title">▸ DRONE FLEET</span>
+      </div>
+      <div class="ph-right">
+        <span class="panel-badge badge-cyan" id="fleetCount">6 UNITS</span>
+      </div>
+      <div class="panel-vtitle">DRONE FLEET</div>
+    </div>
+    <div class="drone-list" id="droneList"></div>
+    <div class="stat-strip">
+      <div class="sstrip">ACTIVE <span id="activeCount">0</span></div>
+      <div class="sstrip">DISPATCHED <span id="dispatchCount">0</span></div>
+      <div class="sstrip">CHARGING <span id="chargingCount">0</span></div>
+    </div>
+  </div>
+
+  <div class="center-right">
+    <div class="top-row">
+      <!-- CENTER: LEAFLET MAP -->
+      <div class="panel map-panel">
+        <div id="leafletMap"></div>
+        <div class="map-overlay">
+          <div class="map-tag">◈ LIVE TACTICAL MAP — PUNE URBAN SECTOR</div>
+          <div class="map-tag" id="mapZone">ZONE: CENTRAL GRID</div>
+        </div>
+        <div class="coords-display" id="coordsDisplay">LAT: 18.5204° N | LNG: 73.8567° E | ALT: 580m</div>
+        <div class="map-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#00ff88"></div> DRONE STANDBY</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#7b5fff"></div> DRONE ACTIVE</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#ff3b3b"></div> INCIDENT SITE</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#ffb800"></div> PATROL ZONE</div>
+        </div>
+      </div>
+
+      <!-- RIGHT: INCIDENTS -->
+      <div class="panel incident-panel" id="incidentPanel">
+        <div class="panel-header">
+          <div class="ph-left">
+            <span class="panel-title">▸ INCIDENT QUEUE</span>
+          </div>
+          <div class="ph-right">
+            <span class="panel-badge badge-red" id="incidentBadge">0 ALERTS</span>
+          </div>
+          <button class="collapse-btn" id="collapseRight" onclick="togglePanel('right')" title="Collapse panel" style="margin-left:6px;flex-shrink:0;">▶</button>
+          <div class="panel-vtitle">INCIDENT QUEUE</div>
+        </div>
+        <div class="incident-list" id="incidentList">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);text-align:center;padding:20px;">
+            MONITORING — NO INCIDENTS<br><br>
+            <span style="font-size:9px">System is actively scanning all feeds</span>
+          </div>
+        </div>
+        <div class="sim-controls">
+          <button class="sim-btn" onclick="triggerRandomIncident()">⚡ SIMULATE</button>
+          <button class="sim-btn danger" onclick="clearAllIncidents()">✕ CLEAR</button>
+          <button class="sim-btn" id="autoBtn" onclick="toggleAuto()">AUTO: OFF</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-row" id="bottomRow">
+      <!-- BOTTOM: VIDEO FEEDS -->
+      <div class="video-panel" id="videoPanel">
+        <div class="feed-container">
+          <div class="panel-header" style="flex-shrink:0">
+            <div class="ph-left">
+              <button class="collapse-btn" id="collapseBottom" onclick="togglePanel('bottom')" title="Collapse">▼</button>
+              <span class="panel-title">▸ LIVE VIDEO FEEDS — AI DETECTION ACTIVE</span>
+            </div>
+            <div class="ph-right">
+              <span class="panel-badge badge-cyan">4 CAMERAS</span>
+            </div>
+          </div>
+          <div class="feeds-grid" id="feedsGrid"></div>
+        </div>
+      </div>
+
+      <!-- LOG -->
+      <div class="panel log-panel" id="logPanel">
+        <div class="panel-header">
+          <div class="ph-left">
+            <button class="collapse-btn" id="collapseLog" onclick="togglePanel('log')" title="Collapse log">▶</button>
+            <span class="panel-title">▸ SYSTEM LOG</span>
+          </div>
+          <div class="ph-right">
+            <span class="panel-badge badge-cyan" id="logBadge">LIVE</span>
+          </div>
+          <div class="panel-vtitle">SYSTEM LOG</div>
+        </div>
+        <div class="log-list" id="logList"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- CDN Scripts — load order matters -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+
+<script>
+// ===================================================================
+//  STATE
+// ===================================================================
+const STATE = {
+  incidents: [],
+  incidentIdCounter: 1000,
+  drones: [],
+  autoMode: false,
+  autoTimer: null,
+  logEntries: [],
+  feeds: [],
+  animFrame: null,
+  frameCount: 0,
+  heatPoints: [],
+  webcamActive: false,
+  webcamPredictions: [],
+};
+
+// ===================================================================
+//  PUNE COORDINATE SYSTEM
+//  x: 0-1 → lng: 73.78 to 73.95
+//  y: 0-1 → lat: 18.60 (north) to 18.44 (south)
+// ===================================================================
+const PUNE_BOUNDS = { latN: 18.605, latS: 18.435, lngW: 73.775, lngE: 73.955 };
+
+function xy2ll(x, y) {
+  return [
+    PUNE_BOUNDS.latN - y * (PUNE_BOUNDS.latN - PUNE_BOUNDS.latS),
+    PUNE_BOUNDS.lngW + x * (PUNE_BOUNDS.lngE - PUNE_BOUNDS.lngW)
+  ];
+}
+
+// ===================================================================
+//  LEAFLET MAP
+// ===================================================================
+let leafletMap = null;
+let droneMarkers = {};
+let droneTrailLines = {};
+let incidentMarkers = {};
+let heatLayer = null;
+
+function initLeafletMap() {
+  leafletMap = L.map('leafletMap', {
+    center: [18.52, 73.855],
+    zoom: 13,
+    zoomControl: false,
+    attributionControl: false,
+    preferCanvas: true,
+  });
+
+  // Esri World Dark Gray Canvas tiles (free, no API key required)
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 16,
+    attribution: '',
+  }).addTo(leafletMap);
+
+  // Place/boundary labels overlay
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19,
+    attribution: '',
+  }).addTo(leafletMap);
+
+  // Heatmap layer
+  heatLayer = L.heatLayer([], {
+    radius: 45,
+    blur: 35,
+    maxZoom: 15,
+    max: 1.0,
+    gradient: { 0.3: '#001f4d', 0.5: '#ffb800', 0.75: '#ff6600', 1.0: '#ff0000' }
+  }).addTo(leafletMap);
+
+  // Patrol zones — centred on the 4 camera feed locations
+  FEED_LOCATIONS.forEach(loc => {
+    L.circle([loc.lat, loc.lng], {
+      radius: 800,
+      color: '#ffb800',
+      fillColor: '#ffb800',
+      fillOpacity: 0.04,
+      weight: 1,
+      opacity: 0.3,
+      dashArray: '4 5',
+    }).addTo(leafletMap);
+  });
+
+  // Drone base markers
+  BASE_POSITIONS.forEach(pos => {
+    const ll = xy2ll(pos.x, pos.y);
+    L.circleMarker(ll, {
+      radius: 4,
+      color: '#00e5ff',
+      fillColor: '#00e5ff',
+      fillOpacity: 0.12,
+      weight: 1,
+      opacity: 0.4,
+    }).addTo(leafletMap);
+  });
+
+  // Update coords on map move
+  leafletMap.on('moveend', () => {
+    const c = leafletMap.getCenter();
+    document.getElementById('coordsDisplay').textContent =
+      `LAT: ${c.lat.toFixed(4)}° N | LNG: ${c.lng.toFixed(4)}° E | ALT: 580m`;
+  });
+}
+
+function getDroneColor(status) {
+  return status === 'standby' ? '#00ff88'
+       : status === 'dispatched' ? '#7b5fff'
+       : status === 'returning' ? '#ffb800'
+       : '#5a8aaa';
+}
+
+function createDroneIcon(drone) {
+  const col = getDroneColor(drone.status);
+  const isActive = drone.status === 'dispatched' || drone.status === 'returning';
+  const spinClass = isActive ? 'drone-svg-spin' : '';
+  const ringHtml = isActive
+    ? `<div class="drone-icon-ring" style="width:20px;height:20px;border-color:${col};top:-4px;left:-4px;"></div>`
+    : '';
+  return L.divIcon({
+    className: '',
+    html: `<div class="drone-icon-outer" style="width:20px;height:20px;">
+      ${ringHtml}
+      <svg class="${spinClass}" width="20" height="20" viewBox="-10 -10 20 20" style="filter:drop-shadow(0 0 3px ${col})">
+        <line x1="-7" y1="-3" x2="7" y2="-3" stroke="${col}" stroke-width="1.5"/>
+        <line x1="-7" y1="3" x2="7" y2="3" stroke="${col}" stroke-width="1.5"/>
+        <line x1="-3" y1="-7" x2="-3" y2="7" stroke="${col}" stroke-width="1.5"/>
+        <line x1="3" y1="-7" x2="3" y2="7" stroke="${col}" stroke-width="1.5"/>
+        <circle cx="0" cy="0" r="2.5" fill="${col}"/>
+      </svg>
+    </div>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+  });
+}
+
+function createIncidentIcon(inc) {
+  const col = inc.severity === 'critical' ? '#ff3b3b'
+            : inc.severity === 'high' ? '#ffb800'
+            : '#00e5ff';
+  return L.divIcon({
+    className: '',
+    html: `<div class="inc-marker-dot" style="background:${col}22;border:2px solid ${col};box-shadow:0 0 8px ${col}88;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;">${inc.icon}</div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+  });
+}
+
+function updateLeafletDrones() {
+  if (!leafletMap) return;
+  for (const d of STATE.drones) {
+    const ll = xy2ll(d.x, d.y);
+    if (!droneMarkers[d.id]) {
+      const m = L.marker(ll, { icon: createDroneIcon(d), zIndexOffset: 800 }).addTo(leafletMap);
+      m.bindTooltip(d.id, {
+        permanent: true,
+        direction: 'right',
+        className: 'drone-ltooltip',
+        offset: [8, 0],
+      });
+      droneMarkers[d.id] = m;
+    } else {
+      droneMarkers[d.id].setLatLng(ll);
+      droneMarkers[d.id].setIcon(createDroneIcon(d));
+    }
+
+    // Trails
+    if (d.trail.length > 1) {
+      const coords = d.trail.map(p => xy2ll(p.x, p.y));
+      if (!droneTrailLines[d.id]) {
+        droneTrailLines[d.id] = L.polyline(coords, {
+          color: '#7b5fff', weight: 1.5, opacity: 0.4, dashArray: '3 5'
+        }).addTo(leafletMap);
+      } else {
+        droneTrailLines[d.id].setLatLngs(coords);
+      }
+    } else if (droneTrailLines[d.id]) {
+      droneTrailLines[d.id].setLatLngs([]);
+    }
+  }
+}
+
+function updateLeafletIncidents() {
+  if (!leafletMap) return;
+  const activeIds = new Set(
+    STATE.incidents.filter(i => i.status !== 'resolved').map(i => i.id)
+  );
+
+  // Remove resolved
+  for (const id of Object.keys(incidentMarkers)) {
+    if (!activeIds.has(parseInt(id))) {
+      leafletMap.removeLayer(incidentMarkers[id]);
+      delete incidentMarkers[id];
+    }
+  }
+
+  // Add new
+  for (const inc of STATE.incidents) {
+    if (inc.status === 'resolved') continue;
+    if (incidentMarkers[inc.id]) continue;
+
+    const ll = xy2ll(inc.x, inc.y);
+    const m = L.marker(ll, { icon: createIncidentIcon(inc), zIndexOffset: 1000 }).addTo(leafletMap);
+    m.bindPopup(`
+      <div style="font-family:'Share Tech Mono',monospace;font-size:10px;padding:8px;min-width:160px;">
+        <div style="color:#ff6b6b;font-size:11px;margin-bottom:6px;letter-spacing:1px;">${inc.icon} ${inc.type}</div>
+        <div style="color:#5a8aaa;margin-bottom:2px;">📍 ${inc.location}</div>
+        <div style="color:#5a8aaa;margin-bottom:2px;">${inc.desc}</div>
+        <div style="color:#e0f4ff;">CONF: ${(inc.confidence * 100).toFixed(1)}% | SEV: ${inc.severity.toUpperCase()}</div>
+      </div>
+    `);
+    incidentMarkers[inc.id] = m;
+
+    // Add to heatmap
+    STATE.heatPoints.push([ll[0], ll[1], inc.severity === 'critical' ? 1.0 : inc.severity === 'high' ? 0.7 : 0.4]);
+    if (STATE.heatPoints.length > 60) STATE.heatPoints.shift();
+    if (heatLayer) heatLayer.setLatLngs(STATE.heatPoints);
+  }
+}
+
+// ===================================================================
+//  AUDIO ALERT
+// ===================================================================
+let audioCtx = null;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playAlertSound() {
+  try {
+    const ctx = getAudioCtx();
+    // Two-tone tactical beep
+    [[880, 0], [660, 0.18], [880, 0.32]].forEach(([freq, when]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'square';
+      gain.gain.setValueAtTime(0, ctx.currentTime + when);
+      gain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + when + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + when + 0.14);
+      osc.start(ctx.currentTime + when);
+      osc.stop(ctx.currentTime + when + 0.14);
+    });
+  } catch (e) { /* audio blocked */ }
+}
+
+// ===================================================================
+//  WEBCAM + COCO-SSD
+// ===================================================================
+let cocoModel = null;
+let lastWebcamIncidentTime = 0;
+const WEBCAM_COOLDOWN = 18000; // 18s between real detections
+
+async function initWebcam() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'environment' }
+    });
+    const video = document.getElementById('webcamVideo');
+    video.srcObject = stream;
+    video.style.display = 'block';
+
+    const slot0 = document.getElementById('feedSlot0');
+    slot0.classList.add('webcam-active');
+
+    STATE.webcamActive = true;
+    addLog('SYSTEM: Webcam feed connected — CAM-1 LIVE', 'ok');
+    document.getElementById('feedStatus0').textContent = '● WEBCAM';
+    document.getElementById('feedStatus0').style.color = 'var(--accent-drone)';
+
+    // Badge
+    const badge = document.createElement('div');
+    badge.className = 'ai-live-badge';
+    badge.id = 'aiLiveBadge';
+    badge.textContent = 'LIVE AI';
+    slot0.appendChild(badge);
+
+    // Load model
+    addLog('AI: Initializing COCO-SSD v2 model...', 'ok');
+    try {
+      await tf.ready();
+      cocoModel = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+      addLog('AI: Model loaded — person/object detection ACTIVE', 'ok');
+      document.getElementById('aiDot').style.background = 'var(--accent-ok)';
+      document.getElementById('aiDot').style.boxShadow = '0 0 6px var(--accent-ok)';
+      document.getElementById('aiDot').className = 'dot';
+      document.getElementById('aiStatus').textContent = 'AI: ACTIVE';
+      runDetection();
+    } catch (modelErr) {
+      addLog('AI: Model load failed — webcam active, no detection', 'warn');
+      document.getElementById('aiStatus').textContent = 'AI: ERROR';
+    }
+  } catch (err) {
+    addLog('WEBCAM: Permission denied — simulated feed active', 'warn');
+    document.getElementById('aiStatus').textContent = 'AI: SIM';
+    document.getElementById('aiDot').style.background = 'var(--accent-warn)';
+  }
+}
+
+async function runDetection() {
+  const video = document.getElementById('webcamVideo');
+  if (!cocoModel || !video || video.readyState < 2) {
+    setTimeout(runDetection, 300);
+    return;
+  }
+  try {
+    const preds = await cocoModel.detect(video);
+    STATE.webcamPredictions = preds;
+
+    const now = Date.now();
+    const persons = preds.filter(p => p.class === 'person' && p.score > 0.62);
+    if (persons.length > 0 && now - lastWebcamIncidentTime > WEBCAM_COOLDOWN) {
+      lastWebcamIncidentTime = now;
+      triggerWebcamIncident(persons[0]);
+    }
+  } catch (e) {
+    STATE.webcamPredictions = [];
+  }
+  setTimeout(runDetection, 220); // ~4.5fps detection
+}
+
+function triggerWebcamIncident(prediction) {
+  const types = [
+    { type: 'PERSON DETECTED',     severity: 'medium',   icon: '👤', desc: 'Individual flagged by AI' },
+    { type: 'CROWD GATHERING',     severity: 'high',     icon: '👥', desc: 'Elevated crowd density' },
+    { type: 'SUSPICIOUS ACTIVITY', severity: 'high',     icon: '⚠',  desc: 'Unusual movement pattern' },
+    { type: 'PERIMETER BREACH',    severity: 'critical', icon: '🚷', desc: 'Unauthorized zone entry' },
+  ];
+  const template = types[Math.floor(Math.random() * types.length)];
+  const fcRoad = FEED_LOCATIONS[0];
+  const jitterLat = (Math.random() - 0.5) * 0.001;
+  const jitterLng = (Math.random() - 0.5) * 0.001;
+  const pos = ll2xy(fcRoad.lat + jitterLat, fcRoad.lng + jitterLng);
+  const incident = {
+    id: STATE.incidentIdCounter++,
+    ...template,
+    location: fcRoad.name,
+    x: pos.x,
+    y: pos.y,
+    timestamp: new Date().toLocaleTimeString(),
+    droneId: null, eta: null,
+    status: 'unassigned',
+    cam: 0,
+    confidence: prediction.score,
+    age: 0,
+    arrivalHandled: false,
+  };
+
+  STATE.incidents.push(incident);
+  STATE.feeds[0].alerting = true;
+  setTimeout(() => { if (STATE.feeds[0]) STATE.feeds[0].alerting = false; }, 3500);
+
+  addLog(`LIVE AI: ${template.type} @ ${fcRoad.name.toUpperCase()} [CONF: ${(prediction.score * 100).toFixed(1)}%]`, 'alert');
+  playAlertSound();
+
+  const drone = findNearestDrone(incident.x, incident.y);
+  if (drone) dispatchDrone(drone, incident);
+  else {
+    addLog(`WARNING: No drones available — INCIDENT #${incident.id} queued`, 'warn');
+    incident.status = 'pending';
+  }
+
+  renderIncidents();
+  renderDrones();
+  updateLeafletIncidents();
+}
+
+// Render webcam overlay (called inside main renderFeed loop)
+function renderWebcamOverlay(canvas, dt) {
+  const slot = canvas.parentElement;
+  const W = slot.clientWidth, H = slot.clientHeight;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H); // transparent — video shows through
+
+  const video = document.getElementById('webcamVideo');
+  const scaleX = video.videoWidth  ? W / video.videoWidth  : 1;
+  const scaleY = video.videoHeight ? H / video.videoHeight : 1;
+
+  for (const pred of STATE.webcamPredictions) {
+    const [bx, by, bw, bh] = pred.bbox;
+    const x = bx * scaleX, y = by * scaleY, w = bw * scaleX, h = bh * scaleY;
+    const conf = pred.score;
+    const label = pred.class.toUpperCase();
+    const isPerson = pred.class === 'person';
+    const col = isPerson ? '#ff3b3b' : '#00e5ff';
+
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x, y, w, h);
+
+    // Corner brackets
+    const cs = 8;
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = isPerson ? '#ff6b6b' : '#00e5ff';
+    ctx.beginPath();
+    ctx.moveTo(x, y + cs); ctx.lineTo(x, y); ctx.lineTo(x + cs, y);
+    ctx.moveTo(x + w - cs, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + cs);
+    ctx.moveTo(x + w, y + h - cs); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w - cs, y + h);
+    ctx.moveTo(x + cs, y + h); ctx.lineTo(x, y + h); ctx.lineTo(x, y + h - cs);
+    ctx.stroke();
+
+    // Label
+    const labelW = label.length * 5.5 + 40;
+    ctx.fillStyle = 'rgba(0,0,0,0.78)';
+    ctx.fillRect(x, y - 14, labelW, 14);
+    ctx.fillStyle = col;
+    ctx.font = '8px Share Tech Mono, monospace';
+    ctx.fillText(`${label} ${(conf * 100).toFixed(0)}%`, x + 3, y - 3);
+
+    // Confidence bar
+    ctx.fillStyle = isPerson ? 'rgba(255,59,59,0.25)' : 'rgba(0,229,255,0.2)';
+    ctx.fillRect(x, y + h + 1, w, 2);
+    ctx.fillStyle = col;
+    ctx.fillRect(x, y + h + 1, w * conf, 2);
+  }
+
+  // Scanline
+  const scanY = ((Date.now() * 0.05) % H) | 0;
+  ctx.fillStyle = 'rgba(0,229,255,0.035)';
+  ctx.fillRect(0, scanY, W, 2);
+
+  // Timestamp
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(2, 2, 122, 14);
+  ctx.fillStyle = 'rgba(0,229,255,0.75)';
+  ctx.font = '8px Share Tech Mono, monospace';
+  ctx.fillText(new Date().toLocaleTimeString('en-GB', { hour12: false }), 4, 12);
+}
+
+// ===================================================================
+//  DRONES
+// ===================================================================
+const DRONE_NAMES = ['KITE-01', 'KITE-02', 'HAWK-03', 'HAWK-04', 'RAVEN-05', 'RAVEN-06'];
+const DRONE_MODELS = ['DJI M30T', 'DJI M30T', 'Parrot Anafi', 'Parrot Anafi', 'SkyScout X', 'SkyScout X'];
+const BASE_POSITIONS = [
+  { x: 0.15, y: 0.2 }, { x: 0.5, y: 0.1 }, { x: 0.85, y: 0.2 },
+  { x: 0.15, y: 0.8 }, { x: 0.5, y: 0.85 }, { x: 0.85, y: 0.75 }
+];
+
+function initDrones() {
+  STATE.drones = DRONE_NAMES.map((name, i) => ({
+    id: name,
+    model: DRONE_MODELS[i],
+    status: 'standby',
+    battery: 75 + Math.random() * 25,
+    x: BASE_POSITIONS[i].x,
+    y: BASE_POSITIONS[i].y,
+    bx: BASE_POSITIONS[i].x,
+    by: BASE_POSITIONS[i].y,
+    targetX: BASE_POSITIONS[i].x,
+    targetY: BASE_POSITIONS[i].y,
+    speed: 0.002 + Math.random() * 0.001,
+    altitude: 80 + Math.random() * 40,
+    assignedIncident: null,
+    eta: null,
+    trail: [],
+  }));
+}
+
+// ===================================================================
+//  INCIDENTS
+// ===================================================================
+const INCIDENT_TYPES = [
+  { type: 'FIRE DETECTED',      severity: 'critical', icon: '🔥', desc: 'Smoke/flame detected' },
+  { type: 'CROWD STAMPEDE',     severity: 'critical', icon: '👥', desc: 'Abnormal crowd density' },
+  { type: 'VEHICLE ACCIDENT',   severity: 'high',     icon: '🚗', desc: 'Collision detected' },
+  { type: 'ARMED THREAT',       severity: 'critical', icon: '⚠',  desc: 'Weapon signature' },
+  { type: 'STRUCTURAL COLLAPSE',severity: 'high',     icon: '🏗',  desc: 'Motion anomaly' },
+  { type: 'MEDICAL EMERGENCY',  severity: 'high',     icon: '🚑',  desc: 'Person down detected' },
+  { type: 'FLOOD RISK',         severity: 'medium',   icon: '💧',  desc: 'Water level rise' },
+  { type: 'TRESPASSING',        severity: 'medium',   icon: '🚷',  desc: 'Perimeter breach' },
+];
+
+// Real Pune coordinates for each named location
+// x/y derived from PUNE_BOUNDS via ll2xy at runtime
+const LOCATIONS = [
+  { name: 'FC Road Intersection',   lat: 18.5195, lng: 73.8469 },
+  { name: 'Shivajinagar Flyover',   lat: 18.5308, lng: 73.8474 },
+  { name: 'Koregaon Park Blvd',     lat: 18.5362, lng: 73.8938 },
+  { name: 'Pune Station Plaza',     lat: 18.5284, lng: 73.8742 },
+  { name: 'Viman Nagar Hub',        lat: 18.5679, lng: 73.9143 },
+  { name: 'Hadapsar Market',        lat: 18.5018, lng: 73.9260 },
+  { name: 'Baner Tech Park',        lat: 18.5590, lng: 73.7868 },
+  { name: 'Katraj Circle',          lat: 18.4528, lng: 73.8635 },
+  { name: 'Deccan Gymkhana',        lat: 18.5142, lng: 73.8396 },
+  { name: 'Magarpatta City',        lat: 18.5089, lng: 73.9260 },
+  { name: 'Aundh Central',          lat: 18.5591, lng: 73.8076 },
+];
+
+// Map the 4 camera feeds to specific real locations
+const FEED_LOCATIONS = [
+  { name: 'FC Road Intersection',   lat: 18.5195, lng: 73.8469 },
+  { name: 'Pune Station Plaza',     lat: 18.5284, lng: 73.8742 },
+  { name: 'Koregaon Park Blvd',     lat: 18.5362, lng: 73.8938 },
+  { name: 'Viman Nagar Hub',        lat: 18.5679, lng: 73.9143 },
+];
+
+// Reverse of xy2ll — lat/lng → normalised x/y for drone logic
+function ll2xy(lat, lng) {
+  return {
+    x: (lng - PUNE_BOUNDS.lngW) / (PUNE_BOUNDS.lngE - PUNE_BOUNDS.lngW),
+    y: (PUNE_BOUNDS.latN - lat) / (PUNE_BOUNDS.latN - PUNE_BOUNDS.latS),
+  };
+}
+
+function findNearestDrone(ix, iy) {
+  let best = null, bestDist = Infinity;
+  for (const d of STATE.drones) {
+    if (d.status === 'standby') {
+      const dx = d.x - ix, dy = d.y - iy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < bestDist) { bestDist = dist; best = d; }
+    }
+  }
+  return best;
+}
+
+function dispatchDrone(drone, incident) {
+  drone.status = 'dispatched';
+  drone.assignedIncident = incident.id;
+  drone.targetX = incident.x;
+  drone.targetY = incident.y;
+  const dx = drone.x - incident.x, dy = drone.y - incident.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  drone.eta = Math.ceil(dist / drone.speed * 0.05);
+  incident.droneId = drone.id;
+  incident.eta = drone.eta;
+  incident.status = 'dispatched';
+  addLog(`DISPATCH: ${drone.id} → INCIDENT #${incident.id} | ETA ${drone.eta}s`, 'dispatch');
+}
+
+function triggerRandomIncident() {
+  const template = INCIDENT_TYPES[Math.floor(Math.random() * INCIDENT_TYPES.length)];
+  const camId = Math.floor(Math.random() * 4);
+  // Pick the real location for this camera feed
+  const locObj = FEED_LOCATIONS[camId];
+  // Small jitter (~100-200m) so repeated incidents at same location don't stack perfectly
+  const jitterLat = (Math.random() - 0.5) * 0.002;
+  const jitterLng = (Math.random() - 0.5) * 0.002;
+  const pos = ll2xy(locObj.lat + jitterLat, locObj.lng + jitterLng);
+  const incident = {
+    id: STATE.incidentIdCounter++,
+    ...template,
+    location: locObj.name,
+    x: pos.x,
+    y: pos.y,
+    timestamp: new Date().toLocaleTimeString(),
+    droneId: null, eta: null,
+    status: 'unassigned',
+    cam: camId,
+    confidence: 0.78 + Math.random() * 0.2,
+    age: 0,
+    arrivalHandled: false,
+  };
+  STATE.incidents.push(incident);
+
+  if (STATE.feeds[camId]) {
+    STATE.feeds[camId].alerting = true;
+    STATE.feeds[camId].detections = [{
+      x: 0.2 + Math.random() * 0.4,
+      y: 0.15 + Math.random() * 0.4,
+      w: 0.15 + Math.random() * 0.2,
+      h: 0.15 + Math.random() * 0.25,
+      label: template.type,
+      conf: incident.confidence,
+    }];
+    setTimeout(() => {
+      if (STATE.feeds[camId]) {
+        STATE.feeds[camId].alerting = false;
+        setTimeout(() => { if (STATE.feeds[camId]) STATE.feeds[camId].detections = []; }, 8000);
+      }
+    }, 3000);
+  }
+
+  addLog(`DETECTION: ${template.type} @ ${locObj.name.toUpperCase()} [CONF: ${(incident.confidence * 100).toFixed(1)}%]`, 'alert');
+  playAlertSound();
+
+  const drone = findNearestDrone(incident.x, incident.y);
+  if (drone) dispatchDrone(drone, incident);
+  else {
+    addLog(`WARNING: No drones available — INCIDENT #${incident.id} queued`, 'warn');
+    incident.status = 'pending';
+  }
+
+  renderIncidents();
+  renderDrones();
+  updateLeafletIncidents();
+}
+
+function clearAllIncidents() {
+  for (const inc of STATE.incidents) {
+    const drone = STATE.drones.find(d => d.assignedIncident === inc.id);
+    if (drone) {
+      drone.status = 'returning';
+      drone.assignedIncident = null;
+      drone.targetX = drone.bx;
+      drone.targetY = drone.by;
+      drone.eta = null;
+      drone.trail = [];
+    }
+  }
+  for (const d of STATE.drones) {
+    if (d.status === 'on-scene' || d.status === 'dispatched') {
+      d.status = 'standby';
+      d.assignedIncident = null;
+      d.eta = null;
+      d.trail = [];
+      d.x = d.bx; d.y = d.by;
+      d.targetX = d.bx; d.targetY = d.by;
+    }
+  }
+  STATE.incidents = [];
+  for (const feed of STATE.feeds) { feed.alerting = false; feed.detections = []; }
+
+  // Clear Leaflet incident markers
+  for (const id of Object.keys(incidentMarkers)) {
+    if (leafletMap) leafletMap.removeLayer(incidentMarkers[id]);
+  }
+  incidentMarkers = {};
+
+  addLog('OPS: All incidents cleared by operator', 'ok');
+  renderIncidents();
+  renderDrones();
+}
+
+function returnDrone(drone) {
+  drone.status = 'returning';
+  drone.assignedIncident = null;
+  drone.targetX = drone.bx;
+  drone.targetY = drone.by;
+  drone.eta = null;
+  addLog(`RETURN: ${drone.id} → BASE`, 'ok');
+  setTimeout(() => dispatchPending(), 600);
+}
+
+function dispatchPending() {
+  const sevOrder = { critical: 0, high: 1, medium: 2 };
+  const pending = STATE.incidents
+    .filter(i => i.status === 'pending' || i.status === 'unassigned')
+    .sort((a, b) => (sevOrder[a.severity] ?? 2) - (sevOrder[b.severity] ?? 2));
+  for (const inc of pending) {
+    const drone = findNearestDrone(inc.x, inc.y);
+    if (!drone) break;
+    addLog(`REQUEUE: ${drone.id} → INCIDENT #${inc.id} [${inc.type}]`, 'dispatch');
+    dispatchDrone(drone, inc);
+  }
+}
+
+let autoInterval = null;
+function toggleAuto() {
+  STATE.autoMode = !STATE.autoMode;
+  document.getElementById('autoBtn').textContent = `AUTO: ${STATE.autoMode ? 'ON' : 'OFF'}`;
+  document.getElementById('autoBtn').classList.toggle('active', STATE.autoMode);
+  if (STATE.autoMode) {
+    autoInterval = setInterval(() => {
+      if (Math.random() < 0.35) triggerRandomIncident();
+    }, 4000);
+    addLog('OPS: Auto-simulation ENABLED', 'ok');
+  } else {
+    clearInterval(autoInterval);
+    addLog('OPS: Auto-simulation DISABLED', 'warn');
+  }
+}
+
+// ===================================================================
+//  RENDER: DRONE LIST
+// ===================================================================
+function renderDrones() {
+  const list = document.getElementById('droneList');
+  list.innerHTML = STATE.drones.map(d => {
+    const batClass = d.battery > 60 ? 'bat-high' : d.battery > 30 ? 'bat-mid' : 'bat-low';
+    const statusClass = d.status === 'standby' ? 'status-standby'
+                      : d.status === 'dispatched' ? 'status-dispatched'
+                      : d.status === 'returning' ? 'status-returning'
+                      : 'status-charging';
+    const cardClass = d.status === 'dispatched' ? 'dispatched' : d.battery < 25 ? 'low-battery' : '';
+    return `<div class="drone-card ${cardClass}">
+      <div class="drone-top">
+        <span class="drone-id">${d.id}</span>
+        <span class="drone-status-tag ${statusClass}">${d.status.toUpperCase()}</span>
+      </div>
+      <div class="drone-metrics">
+        <div class="metric">BAT <span class="metric-val">${d.battery.toFixed(0)}%</span></div>
+        <div class="metric">ALT <span class="metric-val">${d.altitude.toFixed(0)}m</span></div>
+        <div class="metric">MDL <span class="metric-val" style="font-size:9px">${d.model}</span></div>
+        <div class="metric">ETA <span class="metric-val">${d.eta ? d.eta + 's' : '--'}</span></div>
+      </div>
+      <div class="battery-bar"><div class="battery-fill ${batClass}" style="width:${d.battery}%"></div></div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('activeCount').textContent = STATE.drones.filter(d => d.status === 'standby').length;
+  document.getElementById('dispatchCount').textContent = STATE.drones.filter(d => d.status === 'dispatched').length;
+  document.getElementById('chargingCount').textContent = STATE.drones.filter(d => d.status === 'charging').length;
+
+  updateLeafletDrones();
+}
+
+// ===================================================================
+//  RENDER: INCIDENTS
+// ===================================================================
+function renderIncidents() {
+  const list = document.getElementById('incidentList');
+  const active = STATE.incidents.filter(i => i.status !== 'resolved');
+  const badge = document.getElementById('incidentBadge');
+  const headerAlert = document.getElementById('headerAlert');
+  const dot = document.getElementById('incidentDot');
+
+  badge.textContent = `${active.length} ALERTS`;
+  headerAlert.textContent = `${active.length} ACTIVE INCIDENTS`;
+  dot.style.background = active.length > 0 ? 'var(--accent-danger)' : 'var(--text-dim)';
+  dot.style.boxShadow = active.length > 0 ? '0 0 6px var(--accent-danger)' : 'none';
+
+  if (active.length === 0) {
+    list.innerHTML = `<div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);text-align:center;padding:20px;">MONITORING — NO INCIDENTS<br><br><span style="font-size:9px">System is actively scanning all feeds</span></div>`;
+    updateLeafletIncidents();
+    return;
+  }
+
+  if (list.children.length > 0 && !list.children[0].classList.contains('incident-card')) {
+    list.innerHTML = '';
+  }
+
+  const activeIds = new Set(active.map(i => `inc-${i.id}`));
+  Array.from(list.children).forEach(child => { if (!activeIds.has(child.id)) child.remove(); });
+
+  active.slice().reverse().forEach((inc, index) => {
+    const sevClass = inc.severity === 'critical' ? 'sev-critical' : inc.severity === 'high' ? 'sev-high' : 'sev-medium';
+    const cardId = `inc-${inc.id}`;
+    let card = document.getElementById(cardId);
+    const content = `
+      <div class="inc-top">
+        <span class="inc-type">${inc.icon} ${inc.type}</span>
+        <span class="severity-tag ${sevClass}">${inc.severity.toUpperCase()}</span>
+      </div>
+      <div class="inc-location">📍 ${inc.location} | CAM-${inc.cam + 1}</div>
+      <div class="inc-location">${inc.desc} | CONF: ${(inc.confidence * 100).toFixed(1)}%</div>
+      <div class="inc-dispatch">
+        <span class="inc-drone-assigned">${inc.droneId ? '▶ ' + inc.droneId : '⏳ QUEUEING...'}</span>
+        <span class="inc-eta">${inc.eta ? 'ETA ' + inc.eta + 's' : '--'}</span>
+      </div>`;
+    if (!card) {
+      card = document.createElement('div');
+      card.id = cardId;
+      card.className = `incident-card ${inc.severity === 'critical' ? 'critical' : ''}`;
+      card.innerHTML = content;
+      list.appendChild(card);
+    } else {
+      card.className = `incident-card ${inc.severity === 'critical' ? 'critical' : ''}`;
+      card.innerHTML = content;
+    }
+    if (list.children[index] !== card) list.insertBefore(card, list.children[index]);
+  });
+
+  updateLeafletIncidents();
+}
+
+// ===================================================================
+//  LOG
+// ===================================================================
+function addLog(msg, type = '') {
+  const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
+  STATE.logEntries.unshift({ time, msg, type });
+  if (STATE.logEntries.length > 60) STATE.logEntries.pop();
+
+  const list = document.getElementById('logList');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="log-time">${time}</span><span class="log-msg ${type}">${msg}</span>`;
+  list.insertBefore(entry, list.firstChild);
+  if (list.children.length > 60) list.removeChild(list.lastChild);
+}
+
+// ===================================================================
+//  VIDEO FEEDS (canvas simulation for feeds 1-3)
+// ===================================================================
+const FEED_NAMES = ['FC ROAD / SECTOR 7A', 'STATION PLAZA / SECTOR 3B', 'KOREGAON PARK / SECTOR 4C', 'VIMAN NAGAR / SECTOR 9D'];
+const FEED_TYPES = ['intersection', 'commercial', 'park', 'highway'];
+
+function initFeeds() {
+  STATE.feeds = FEED_NAMES.map((name, i) => ({
+    name, type: FEED_TYPES[i],
+    alerting: false,
+    detections: [],
+    noisePhase: Math.random() * Math.PI * 2,
+    people: Array.from({ length: 3 + Math.floor(Math.random() * 5) }, () => ({
+      x: Math.random(), y: 0.3 + Math.random() * 0.6,
+      vx: (Math.random() - 0.5) * 0.003, vy: (Math.random() - 0.5) * 0.001,
+      size: 3 + Math.random() * 3,
+    })),
+    vehicles: Array.from({ length: Math.floor(Math.random() * 3) }, () => ({
+      x: Math.random(), y: 0.2 + Math.random() * 0.7,
+      vx: (Math.random() - 0.5) * 0.005,
+      w: 10 + Math.random() * 8, h: 5 + Math.random() * 4,
+    })),
+  }));
+
+  const grid = document.getElementById('feedsGrid');
+  grid.innerHTML = '';
+  STATE.feeds.forEach((feed, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'feed-slot';
+    slot.id = `feedSlot${i}`;
+
+    // Feed 0 gets a webcam video element
+    const webcamHtml = i === 0
+      ? `<video id="webcamVideo" class="webcam-video" autoplay muted playsinline></video>`
+      : '';
+
+    slot.innerHTML = `
+      ${webcamHtml}
+      <canvas class="feed-canvas" id="feedCanvas${i}"></canvas>
+      <div class="feed-alert-overlay"></div>
+      <div class="feed-label">
+        <span id="feedLabel${i}">CAM-${i + 1} | ${feed.name}</span>
+        <span id="feedStatus${i}" style="color:var(--accent-ok)">● LIVE</span>
+      </div>`;
+    grid.appendChild(slot);
+  });
+}
+
+function renderFeed(i, dt) {
+  const canvas = document.getElementById(`feedCanvas${i}`);
+  if (!canvas) return;
+  const slot = document.getElementById(`feedSlot${i}`);
+  const feed = STATE.feeds[i];
+
+  // Feed 0: webcam overlay mode
+  if (i === 0 && STATE.webcamActive) {
+    renderWebcamOverlay(canvas, dt);
+    if (feed.alerting) slot.classList.add('alerting');
+    else slot.classList.remove('alerting');
+    return;
+  }
+
+  // Feeds 1-3 (and feed 0 fallback): canvas simulation
+  const W = slot.clientWidth, H = slot.clientHeight;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  // Background gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#0a1520');
+  grad.addColorStop(1, '#050c14');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(0,229,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 30) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+  // Road surface
+  ctx.fillStyle = 'rgba(20,35,55,0.6)';
+  ctx.fillRect(0, H * 0.45, W, H * 0.15);
+  ctx.strokeStyle = 'rgba(255,255,200,0.1)';
+  ctx.setLineDash([W * 0.05, W * 0.05]);
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, H * 0.525); ctx.lineTo(W, H * 0.525); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Buildings skyline
+  const buildingHeights = [0.5, 0.35, 0.45, 0.3, 0.4, 0.55, 0.35];
+  buildingHeights.forEach((h, bi) => {
+    const bw = W / buildingHeights.length;
+    ctx.fillStyle = `rgba(10,25,40,${0.8 + bi * 0.02})`;
+    ctx.fillRect(bi * bw + 1, H * (1 - h), bw - 2, H * h);
+    for (let wr = 0; wr < 3; wr++) {
+      for (let wc = 0; wc < 2; wc++) {
+        if (Math.random() > 0.4) {
+          ctx.fillStyle = 'rgba(255,230,100,0.3)';
+          ctx.fillRect(bi * bw + 4 + wc * 8, H * (1 - h) + 6 + wr * 10, 5, 4);
+        }
+      }
+    }
+  });
+
+  // People
+  for (const p of feed.people) {
+    p.x += p.vx; p.y += p.vy;
+    if (p.x < 0 || p.x > 1) p.vx *= -1;
+    if (p.y < 0.2 || p.y > 0.95) p.vy *= -1;
+    const px = p.x * W, py = p.y * H;
+    ctx.fillStyle = 'rgba(150,200,255,0.7)';
+    ctx.beginPath(); ctx.arc(px, py - p.size, p.size * 0.6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(px - p.size * 0.4, py - p.size, p.size * 0.8, p.size * 1.5);
+  }
+
+  // Vehicles
+  for (const v of feed.vehicles) {
+    v.x += v.vx;
+    if (v.x < -0.1) v.x = 1.1;
+    if (v.x > 1.1) v.x = -0.1;
+    ctx.fillStyle = 'rgba(80,140,200,0.5)';
+    ctx.fillRect(v.x * W, v.y * H, v.w, v.h);
+    ctx.fillStyle = 'rgba(255,220,50,0.6)';
+    ctx.fillRect(v.vx > 0 ? (v.x * W + v.w - 2) : v.x * W, v.y * H, 2, v.h);
+  }
+
+  // Timestamp
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(2, 2, 120, 14);
+  ctx.fillStyle = 'rgba(0,229,255,0.7)';
+  ctx.font = '8px Share Tech Mono, monospace';
+  ctx.fillText(new Date().toLocaleTimeString('en-GB', { hour12: false }), 4, 12);
+
+  // Detection boxes
+  for (const det of feed.detections) {
+    const bx = det.x * W, by = det.y * H, bw = det.w * W, bh = det.h * H;
+    ctx.strokeStyle = '#ff3b3b';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(bx, by, bw, bh);
+    const cs = 8;
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.beginPath();
+    ctx.moveTo(bx, by + cs); ctx.lineTo(bx, by); ctx.lineTo(bx + cs, by);
+    ctx.moveTo(bx + bw - cs, by); ctx.lineTo(bx + bw, by); ctx.lineTo(bx + bw, by + cs);
+    ctx.moveTo(bx + bw, by + bh - cs); ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx + bw - cs, by + bh);
+    ctx.moveTo(bx + cs, by + bh); ctx.lineTo(bx, by + bh); ctx.lineTo(bx, by + bh - cs);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(bx, by - 14, det.label.length * 5.5 + 20, 14);
+    ctx.fillStyle = '#ff6b6b';
+    ctx.font = '8px Share Tech Mono, monospace';
+    ctx.fillText(`${det.label} ${(det.conf * 100).toFixed(0)}%`, bx + 2, by - 3);
+    ctx.fillStyle = 'rgba(255,59,59,0.3)';
+    ctx.fillRect(bx, by + bh + 1, bw, 2);
+    ctx.fillStyle = '#ff3b3b';
+    ctx.fillRect(bx, by + bh + 1, bw * det.conf, 2);
+  }
+
+  // Alerting border
+  if (feed.alerting) slot.classList.add('alerting');
+  else slot.classList.remove('alerting');
+
+  // Scanline
+  feed.noisePhase += 0.05;
+  const scanY = ((Math.sin(feed.noisePhase) * 0.5 + 0.5) * H) | 0;
+  const scanGrad = ctx.createLinearGradient(0, scanY - 3, 0, scanY + 3);
+  scanGrad.addColorStop(0, 'transparent');
+  scanGrad.addColorStop(0.5, 'rgba(0,229,255,0.04)');
+  scanGrad.addColorStop(1, 'transparent');
+  ctx.fillStyle = scanGrad;
+  ctx.fillRect(0, scanY - 3, W, 6);
+}
+
+// ===================================================================
+//  UPDATE LOOP
+// ===================================================================
+function update(dt) {
+  for (const d of STATE.drones) {
+    const dx = d.targetX - d.x, dy = d.targetY - d.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > 0.005) {
+      d.x += (dx / dist) * d.speed;
+      d.y += (dy / dist) * d.speed;
+      if (d.status === 'dispatched' || d.status === 'returning') {
+        d.trail.push({ x: d.x, y: d.y });
+        if (d.trail.length > 30) d.trail.shift();
+      }
+    } else {
+      if (d.status === 'dispatched') {
+        const inc = STATE.incidents.find(i => i.id === d.assignedIncident);
+        if (inc && !inc.arrivalHandled) {
+          inc.arrivalHandled = true;
+          addLog(`ARRIVED: ${d.id} @ INCIDENT #${inc.id} | ${inc.type}`, 'ok');
+          inc.status = 'on-scene';
+          const delay = 4000 + Math.random() * 4000;
+          setTimeout(() => {
+            inc.status = 'resolved';
+            inc.resolvedAt = Date.now();
+            returnDrone(d);
+            renderIncidents();
+            renderDrones();
+          }, delay);
+        }
+        d.status = 'on-scene';
+        d.eta = null;
+      } else if (d.status === 'returning') {
+        d.status = 'standby';
+        d.trail = [];
+        addLog(`STANDBY: ${d.id} returned to base`, 'ok');
+        dispatchPending();
+      }
+    }
+
+    if (d.status === 'dispatched' || d.status === 'on-scene') {
+      d.battery = Math.max(10, d.battery - 0.02);
+    }
+    if (d.eta !== null) d.eta = Math.max(0, d.eta - dt * 0.001);
+    d.altitude += (Math.random() - 0.5) * 0.5;
+    d.altitude = Math.max(60, Math.min(150, d.altitude));
+  }
+
+  const now = Date.now();
+  const prevLen = STATE.incidents.length;
+  STATE.incidents = STATE.incidents.filter(
+    i => i.status !== 'resolved' || !i.resolvedAt || (now - i.resolvedAt) < 4000
+  );
+  if (STATE.incidents.length !== prevLen) updateLeafletIncidents();
+
+  STATE.frameCount++;
+  if (STATE.frameCount % 6 === 0) updateLeafletDrones();
+  if (STATE.frameCount % 30 === 0) renderDrones();
+}
+
+// ===================================================================
+//  CLOCK
+// ===================================================================
+function updateClock() {
+  document.getElementById('clockEl').textContent =
+    new Date().toLocaleTimeString('en-GB', { hour12: false });
+}
+setInterval(updateClock, 1000);
+
+// ===================================================================
+//  MAIN LOOP
+// ===================================================================
+let lastTime = 0;
+function loop(ts) {
+  const dt = ts - lastTime;
+  lastTime = ts;
+  update(dt);
+  for (let i = 0; i < 4; i++) renderFeed(i, dt);
+  STATE.animFrame = requestAnimationFrame(loop);
+}
+
+// ===================================================================
+//  PANEL COLLAPSE
+// ===================================================================
+const _panelState = { left: false, right: false, bottom: false, log: false };
+
+function togglePanel(which) {
+  if (which === 'left') {
+    _panelState.left = !_panelState.left;
+    const panel = document.getElementById('fleetPanel');
+    const btn = document.getElementById('collapseLeft');
+    panel.classList.toggle('collapsed', _panelState.left);
+    btn.textContent = _panelState.left ? '▶' : '◀';
+    if (leafletMap) setTimeout(() => leafletMap.invalidateSize(), 260);
+  } else if (which === 'right') {
+    _panelState.right = !_panelState.right;
+    const panel = document.getElementById('incidentPanel');
+    const btn = document.getElementById('collapseRight');
+    panel.classList.toggle('collapsed', _panelState.right);
+    btn.textContent = _panelState.right ? '◀' : '▶';
+    if (leafletMap) setTimeout(() => leafletMap.invalidateSize(), 260);
+  } else if (which === 'bottom') {
+    _panelState.bottom = !_panelState.bottom;
+    const bottomRow = document.getElementById('bottomRow');
+    const panel = document.getElementById('videoPanel');
+    const btn = document.getElementById('collapseBottom');
+    bottomRow.classList.toggle('collapsed', _panelState.bottom);
+    panel.classList.toggle('collapsed', _panelState.bottom);
+    btn.textContent = _panelState.bottom ? '▲' : '▼';
+    if (leafletMap) setTimeout(() => leafletMap.invalidateSize(), 260);
+  } else if (which === 'log') {
+    _panelState.log = !_panelState.log;
+    const panel = document.getElementById('logPanel');
+    const btn = document.getElementById('collapseLog');
+    panel.classList.toggle('collapsed', _panelState.log);
+    btn.textContent = _panelState.log ? '◀' : '▶';
+  }
+}
+
+// ===================================================================
+//  INIT
+// ===================================================================
+async function init() {
+  initDrones();
+  initFeeds();
+  renderDrones();
+  renderIncidents();
+  initLeafletMap();
+
+  addLog('SYSTEM: AEGIS Command Platform initialized', 'ok');
+  addLog('SYSTEM: All subsystems nominal', 'ok');
+  addLog('SYSTEM: Geolocation grid calibrated [PUNE URBAN SECTOR]', 'ok');
+  addLog('SYSTEM: 6 drones registered to fleet', 'ok');
+  addLog('SYSTEM: Leaflet OSM map loaded — PUNE grid active', 'ok');
+  addLog('SYSTEM: Video feeds connected — 4/4 active', 'ok');
+  addLog('SYSTEM: Incident heatmap layer initialized', 'ok');
+
+  requestAnimationFrame(loop);
+
+  // Async: webcam + AI (don't block init)
+  initWebcam();
+}
+
+init();
+</script>
+</body>
+</html>

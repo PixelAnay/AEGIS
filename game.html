@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS — VOID STRIKER</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #000;
+  overflow: hidden;
+  font-family: 'Orbitron', monospace;
+  height: 100vh;
+}
+
+#game {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  background: rgba(0,0,0,0.92);
+}
+
+.title {
+  font-size: 64px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #00f0ff, #ff00aa, #b400ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 10px;
+}
+
+.sub {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  letter-spacing: 8px;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 50px;
+}
+
+.ctrls {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  color: rgba(255,255,255,0.5);
+  line-height: 2.2;
+  text-align: center;
+  margin-bottom: 40px;
+}
+.ctrls b { color: #00f0ff; font-weight: normal; }
+
+.btn {
+  font-family: 'Orbitron', monospace;
+  font-size: 20px;
+  font-weight: 700;
+  padding: 22px 70px;
+  background: transparent;
+  border: 2px solid #00f0ff;
+  color: #00f0ff;
+  cursor: pointer;
+  letter-spacing: 6px;
+  transition: all 0.3s;
+}
+.btn:hover {
+  background: rgba(0,240,255,0.15);
+  box-shadow: 0 0 40px rgba(0,240,255,0.4);
+  transform: scale(1.05);
+}
+
+.hud {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 18px 28px;
+  display: flex;
+  justify-content: space-between;
+  z-index: 10;
+  pointer-events: none;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+}
+.hud div { display: flex; align-items: center; gap: 8px; }
+.hud .lbl { color: rgba(255,255,255,0.35); letter-spacing: 2px; font-size: 10px; }
+.hud .val { color: #00f0ff; font-size: 18px; font-family: 'Orbitron', monospace; }
+.hud .val.sc { color: #ffff00; }
+.hud .val.wv { color: #ff00aa; }
+
+.bar {
+  width: 160px;
+  height: 6px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.bar-fill {
+  height: 100%;
+  transition: width 0.2s;
+}
+.bar-hp .bar-fill { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
+.bar-pw .bar-fill { background: #b400ff; box-shadow: 0 0 8px #b400ff; }
+
+#announce {
+  position: fixed;
+  top: 35%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  font-size: 56px;
+  font-weight: 900;
+  color: #ff00aa;
+  text-shadow: 0 0 40px #ff00aa;
+  pointer-events: none;
+  z-index: 20;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+#gameOver {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.93);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+#gameOver .fs {
+  font-size: 52px;
+  font-weight: 900;
+  color: #ffff00;
+  text-shadow: 0 0 30px #ffff00;
+  margin: 16px 0;
+}
+#gameOver .fw {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  color: #ff00aa;
+  letter-spacing: 4px;
+  margin-bottom: 36px;
+}
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="overlay">
+  <div class="title">VOID STRIKER</div>
+  <div class="sub">NEXUS ARCADE</div>
+  <div class="ctrls">
+    <b>WASD / ARROWS</b> — MOVE<br>
+    <b>SPACE / CLICK</b> — SHOOT<br>
+    <b>SHIFT</b> — DASH<br>
+    <b>E</b> — SPECIAL ATTACK<br>
+    <b>P / ESC</b> — PAUSE
+  </div>
+  <button class="btn" id="btnStart">START GAME</button>
+</div>
+
+<div id="gameOver">
+  <div class="title">GAME OVER</div>
+  <div class="fs" id="fScore">0</div>
+  <div class="fw" id="fWave">WAVE 1</div>
+  <button class="btn" id="btnRestart">RESTART</button>
+</div>
+
+<div class="hud" id="hud" style="display:none">
+  <div><span class="lbl">SCORE</span><span class="val sc" id="hScore">0</span></div>
+  <div><span class="lbl">COMBO</span><span class="val wv" id="hCombo">x1</span></div>
+  <div><span class="lbl">WAVE</span><span class="val wv" id="hWave">1</span></div>
+  <div><span class="lbl">HP</span><div class="bar bar-hp"><div class="bar-fill" id="hHp" style="width:100%"></div></div></div>
+  <div><span class="lbl">POWER</span><div class="bar bar-pw"><div class="bar-fill" id="hPw" style="width:100%"></div></div></div>
+</div>
+
+<div id="announce"></div>
+
+<script>
+const C = document.getElementById('game');
+const X = C.getContext('2d');
+let W, H;
+
+function resize() {
+  W = C.width = innerWidth;
+  H = C.height = innerHeight;
+}
+resize();
+addEventListener('resize', resize);
+
+const G = { run: false, pause: false, score: 0, combo: 1, comboT: 0, wave: 1, waveT: 0, perWave: 5, spawned: 0, spawnT: 0, shake: 0, t: 0 };
+const P = { x: 0, y: 0, hp: 100, maxHp: 100, pw: 100, maxPw: 100, spd: 6, dashCd: 0, shootCd: 0, inv: 0 };
+const keys = {};
+let mx = 0, my = 0, md = false;
+let bullets = [], enemies = [], fx = [], items = [];
+
+const COL = { c: '#00f0ff', p: '#ff00aa', pu: '#b400ff', g: '#00ff88', o: '#ff6600', r: '#ff0044', y: '#ffff00' };
+const ETYPES = [
+  { n:'drone', c:COL.p, hp:1, spd:2, sz:25, sc:100, sr:0 },
+  { n:'hunter', c:COL.pu, hp:2, spd:3, sz:30, sc:200, sr:0.02 },
+  { n:'tank', c:COL.r, hp:5, spd:1, sz:45, sc:500, sr:0.01 },
+  { n:'sniper', c:COL.o, hp:1, spd:1.5, sz:28, sc:300, sr:0.04 },
+  { n:'boss', c:COL.y, hp:30, spd:0.8, sz:70, sc:2000, sr:0.03 }
+];
+
+addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if ((e.key === 'Escape' || e.key.toLowerCase() === 'p') && G.run) {
+    G.pause = !G.pause;
+  }
+  if (e.key.toLowerCase() === 'e' && G.run && !G.pause) special();
+});
+addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+addEventListener('mousedown', () => md = true);
+addEventListener('mouseup', () => md = false);
+
+function spawn() {
+  const wi = G.wave;
+  let ti = Math.floor(Math.random() * Math.min(wi, 4));
+  if (wi % 5 === 0 && G.spawned >= G.perWave - 1) ti = 4;
+  const t = ETYPES[ti];
+  const side = Math.floor(Math.random() * 4);
+  let x, y;
+  if (side === 0) { x = Math.random() * W; y = -50; }
+  else if (side === 1) { x = W + 50; y = Math.random() * H; }
+  else if (side === 2) { x = Math.random() * W; y = H + 50; }
+  else { x = -50; y = Math.random() * H; }
+  enemies.push({ x, y, n: t.n, c: t.c, hp: t.hp + Math.floor(wi / 3), mhp: t.hp + Math.floor(wi / 3), spd: t.spd + wi * 0.04, sz: t.sz, sc: t.sc, sr: t.sr, a: 0, t: 0, pat: Math.floor(Math.random() * 3) });
+  G.spawned++;
+}
+
+function shoot() {
+  if (P.shootCd > 0) return;
+  const a = Math.atan2(my - P.y, mx - P.x);
+  bullets.push({ x: P.x, y: P.y, vx: Math.cos(a) * 12, vy: Math.sin(a) * 12, sz: 4, c: COL.c, d: 1, who: 1, life: 60 });
+  P.shootCd = 6;
+  for (let i = 0; i < 4; i++) fx.push({ x: P.x, y: P.y, vx: Math.cos(a) * (3 + Math.random() * 3), vy: Math.sin(a) * (3 + Math.random() * 3), sz: 3, c: COL.c, life: 10 });
+}
+
+function special() {
+  if (P.pw < 50) return;
+  P.pw -= 50;
+  enemies.forEach(e => {
+    const d = Math.hypot(e.x - P.x, e.y - P.y);
+    if (d < 300) {
+      e.hp -= 3;
+      for (let i = 0; i < 15; i++) fx.push({ x: e.x, y: e.y, vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10, sz: 4, c: e.c, life: 20 });
+    }
+  });
+  for (let i = 0; i < 40; i++) {
+    const a = (i / 40) * Math.PI * 2;
+    fx.push({ x: P.x, y: P.y, vx: Math.cos(a) * 8, vy: Math.sin(a) * 8, sz: 5, c: COL.pu, life: 25 });
+  }
+  G.shake = 14;
+}
+
+function dash() {
+  if (P.dashCd > 0) return;
+  let dx = 0, dy = 0;
+  if (keys['w'] || keys['arrowup']) dy = -1;
+  if (keys['s'] || keys['arrowdown']) dy = 1;
+  if (keys['a'] || keys['arrowleft']) dx = -1;
+  if (keys['d'] || keys['arrowright']) dx = 1;
+  if (!dx && !dy) dy = -1;
+  const l = Math.hypot(dx, dy);
+  P.x += (dx / l) * 150;
+  P.y += (dy / l) * 150;
+  P.x = Math.max(20, Math.min(W - 20, P.x));
+  P.y = Math.max(20, Math.min(H - 20, P.y));
+  P.inv = 15;
+  P.dashCd = 30;
+  for (let i = 0; i < 12; i++) fx.push({ x: P.x - (dx / l) * i * 10, y: P.y - (dy / l) * i * 10, vx: 0, vy: 0, sz: 7 - i * 0.5, c: COL.c, life: 12 });
+}
+
+function update() {
+  if (!G.run || G.pause) return;
+  G.t++;
+
+  let dx = 0, dy = 0;
+  if (keys['w'] || keys['arrowup']) dy = -1;
+  if (keys['s'] || keys['arrowdown']) dy = 1;
+  if (keys['a'] || keys['arrowleft']) dx = -1;
+  if (keys['d'] || keys['arrowright']) dx = 1;
+  if (dx || dy) {
+    const l = Math.hypot(dx, dy);
+    P.x += (dx / l) * P.spd;
+    P.y += (dy / l) * P.spd;
+  }
+  P.x = Math.max(20, Math.min(W - 20, P.x));
+  P.y = Math.max(20, Math.min(H - 20, P.y));
+
+  if (md || keys[' ']) shoot();
+  if (keys['shift']) dash();
+  if (P.shootCd > 0) P.shootCd--;
+  if (P.dashCd > 0) P.dashCd--;
+  if (P.inv > 0) P.inv--;
+  if (P.pw < P.maxPw) P.pw += 0.05;
+
+  if (G.comboT > 0) { G.comboT--; if (G.comboT <= 0) G.combo = 1; }
+
+  G.spawnT--;
+  if (G.spawnT <= 0 && G.spawned < G.perWave) { spawn(); G.spawnT = Math.max(15, 50 - G.wave * 2); }
+
+  if (G.spawned >= G.perWave && enemies.length === 0) {
+    G.waveT++;
+    if (G.waveT > 50) {
+      G.wave++;
+      G.perWave = 5 + G.wave * 2;
+      G.spawned = 0;
+      G.spawnT = 50;
+      G.waveT = 0;
+      announce('WAVE ' + G.wave);
+    }
+  }
+
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.x += b.vx; b.y += b.vy; b.life--;
+    if (b.life <= 0 || b.x < -50 || b.x > W + 50 || b.y < -50 || b.y > H + 50) { bullets.splice(i, 1); continue; }
+
+    if (b.who === 1) {
+      for (let j = enemies.length - 1; j >= 0; j--) {
+        const e = enemies[j];
+        if (Math.hypot(b.x - e.x, b.y - e.y) < e.sz) {
+          e.hp -= b.d;
+          bullets.splice(i, 1);
+          for (let k = 0; k < 4; k++) fx.push({ x: b.x, y: b.y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6, sz: 3, c: e.c, life: 12 });
+          G.shake = 3;
+          break;
+        }
+      }
+    } else {
+      if (Math.hypot(b.x - P.x, b.y - P.y) < 22 && P.inv <= 0) {
+        P.hp -= 10; P.inv = 30;
+        bullets.splice(i, 1);
+        G.shake = 7;
+        for (let k = 0; k < 8; k++) fx.push({ x: P.x, y: P.y, vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8, sz: 4, c: COL.r, life: 18 });
+      }
+    }
+  }
+
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    e.t++; e.a += 0.05;
+    const dx2 = P.x - e.x, dy2 = P.y - e.y;
+    const d = Math.hypot(dx2, dy2) || 1;
+
+    if (e.pat === 0) { e.x += (dx2 / d) * e.spd; e.y += (dy2 / d) * e.spd; }
+    else if (e.pat === 1) { e.x += Math.cos(e.t * 0.03) * e.spd * 1.5; e.y += (dy2 / d) * e.spd * 0.5; }
+    else { e.x += Math.cos(e.t * 0.1) * e.spd * 2; e.y += (dy2 / d) * e.spd * 0.3; }
+
+    if (Math.random() < e.sr) {
+      const a = Math.atan2(P.y - e.y, P.x - e.x);
+      bullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * 5, vy: Math.sin(a) * 5, sz: 5, c: e.c, d: 10, who: 2, life: 100 });
+    }
+
+    if (d < e.sz + 18 && P.inv <= 0) {
+      P.hp -= 18; P.inv = 50; e.hp -= 3; G.shake = 10;
+      for (let k = 0; k < 12; k++) fx.push({ x: P.x, y: P.y, vx: (Math.random() - 0.5) * 12, vy: (Math.random() - 0.5) * 12, sz: 5, c: COL.r, life: 22 });
+    }
+
+    if (e.hp <= 0) {
+      G.score += e.sc * G.combo;
+      G.combo++; G.comboT = 120;
+      for (let k = 0; k < 25; k++) fx.push({ x: e.x, y: e.y, vx: (Math.random() - 0.5) * 14, vy: (Math.random() - 0.5) * 14, sz: 4 + Math.random() * 4, c: e.c, life: 28 });
+      showPopup('+' + (e.sc * G.combo));
+      enemies.splice(i, 1);
+      G.shake = 7;
+    }
+  }
+
+  for (let i = fx.length - 1; i >= 0; i--) {
+    const f = fx[i];
+    f.x += f.vx; f.y += f.vy; f.vx *= 0.94; f.vy *= 0.94; f.life--; f.sz *= 0.97;
+    if (f.life <= 0) fx.splice(i, 1);
+  }
+
+  if (P.hp <= 0) gameOver();
+
+  document.getElementById('hScore').textContent = G.score.toLocaleString();
+  document.getElementById('hCombo').textContent = 'x' + G.combo;
+  document.getElementById('hWave').textContent = G.wave;
+  document.getElementById('hHp').style.width = (P.hp / P.maxHp * 100) + '%';
+  document.getElementById('hPw').style.width = (P.pw / P.maxPw * 100) + '%';
+}
+
+function draw() {
+  X.save();
+  if (G.shake > 0.5) { X.translate((Math.random() - 0.5) * G.shake, (Math.random() - 0.5) * G.shake); G.shake *= 0.88; }
+
+  X.fillStyle = 'rgba(0,0,0,0.18)';
+  X.fillRect(0, 0, W, H);
+
+  X.strokeStyle = 'rgba(0,240,255,0.025)';
+  for (let x = 0; x < W; x += 50) { X.beginPath(); X.moveTo(x, 0); X.lineTo(x, H); X.stroke(); }
+  for (let y = 0; y < H; y += 50) { X.beginPath(); X.moveTo(0, y); X.lineTo(W, y); X.stroke(); }
+
+  enemies.forEach(e => {
+    X.save(); X.translate(e.x, e.y);
+    X.shadowColor = e.c; X.shadowBlur = 18;
+    X.beginPath();
+    if (e.n === 'boss') { for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + e.a; i === 0 ? X.moveTo(Math.cos(a) * e.sz, Math.sin(a) * e.sz) : X.lineTo(Math.cos(a) * e.sz, Math.sin(a) * e.sz); } X.closePath(); }
+    else if (e.n === 'tank') X.rect(-e.sz / 2, -e.sz / 2, e.sz, e.sz);
+    else if (e.n === 'sniper') { X.moveTo(0, -e.sz); X.lineTo(e.sz, 0); X.lineTo(0, e.sz); X.lineTo(-e.sz, 0); X.closePath(); }
+    else { X.moveTo(0, -e.sz); X.lineTo(e.sz, e.sz); X.lineTo(-e.sz, e.sz); X.closePath(); }
+    X.fillStyle = e.c + '30'; X.fill(); X.strokeStyle = e.c; X.lineWidth = 2; X.stroke();
+    if (e.hp < e.mhp) { X.fillStyle = 'rgba(255,255,255,0.15)'; X.fillRect(-e.sz, -e.sz - 8, e.sz * 2, 3); X.fillStyle = e.c; X.fillRect(-e.sz, -e.sz - 8, e.sz * 2 * (e.hp / e.mhp), 3); }
+    X.shadowBlur = 0; X.restore();
+  });
+
+  if (P.inv <= 0 || Math.floor(G.t / 3) % 2 === 0) {
+    X.save(); X.translate(P.x, P.y);
+    X.shadowColor = COL.c; X.shadowBlur = 22;
+    X.beginPath(); X.moveTo(0, -24); X.lineTo(18, 18); X.lineTo(8, 14); X.lineTo(0, 18); X.lineTo(-8, 14); X.lineTo(-18, 18); X.closePath();
+    X.fillStyle = COL.c + '50'; X.fill(); X.strokeStyle = COL.c; X.lineWidth = 2; X.stroke();
+    X.beginPath(); X.arc(0, 0, 7, 0, Math.PI * 2); X.fillStyle = COL.c; X.fill();
+    const a = Math.atan2(my - P.y, mx - P.x);
+    X.beginPath(); X.moveTo(Math.cos(a) * 28, Math.sin(a) * 28); X.lineTo(Math.cos(a + 0.3) * 18, Math.sin(a + 0.3) * 18); X.lineTo(Math.cos(a - 0.3) * 18, Math.sin(a - 0.3) * 18); X.closePath(); X.fillStyle = COL.c + '70'; X.fill();
+    X.shadowBlur = 0; X.restore();
+  }
+
+  bullets.forEach(b => {
+    X.beginPath(); X.arc(b.x, b.y, b.sz, 0, Math.PI * 2);
+    X.fillStyle = b.c; X.shadowColor = b.c; X.shadowBlur = 12; X.fill();
+    X.beginPath(); X.moveTo(b.x, b.y); X.lineTo(b.x - b.vx * 2, b.y - b.vy * 2);
+    X.strokeStyle = b.c + '60'; X.lineWidth = b.sz; X.stroke();
+    X.shadowBlur = 0;
+  });
+
+  fx.forEach(f => {
+    X.beginPath(); X.arc(f.x, f.y, Math.max(0, f.sz), 0, Math.PI * 2);
+    X.fillStyle = f.c; X.globalAlpha = Math.min(1, f.life / 10); X.fill();
+  });
+  X.globalAlpha = 1;
+
+  X.strokeStyle = COL.c + '60'; X.lineWidth = 1;
+  X.beginPath(); X.arc(mx, my, 14, 0, Math.PI * 2); X.stroke();
+  X.beginPath(); X.moveTo(mx - 18, my); X.lineTo(mx - 8, my); X.moveTo(mx + 8, my); X.lineTo(mx + 18, my); X.moveTo(mx, my - 18); X.lineTo(mx, my - 8); X.moveTo(mx, my + 8); X.lineTo(mx, my + 18); X.stroke();
+
+  if (G.pause) { X.fillStyle = 'rgba(0,0,0,0.6)'; X.fillRect(0, 0, W, H); X.font = '48px Orbitron'; X.fillStyle = COL.c; X.textAlign = 'center'; X.fillText('PAUSED', W / 2, H / 2); X.textAlign = 'left'; }
+
+  X.restore();
+}
+
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+
+function announce(txt) {
+  const el = document.getElementById('announce');
+  el.textContent = txt; el.style.opacity = '1';
+  setTimeout(() => el.style.opacity = '0', 1800);
+}
+
+let popupTimer = null;
+function showPopup(txt) {
+  const el = document.getElementById('announce');
+  el.textContent = txt; el.style.opacity = '1'; el.style.color = COL.y; el.style.textShadow = '0 0 30px ' + COL.y;
+  clearTimeout(popupTimer);
+  popupTimer = setTimeout(() => { el.style.opacity = '0'; el.style.color = COL.p; el.style.textShadow = '0 0 40px ' + COL.p; }, 500);
+}
+
+function startGame() {
+  G.run = true; G.pause = false; G.score = 0; G.combo = 1; G.wave = 1;
+  G.perWave = 5; G.spawned = 0; G.spawnT = 50; G.waveT = 0; G.t = 0;
+  P.x = W / 2; P.y = H - 150; P.hp = 100; P.pw = 100; P.spd = 6; P.inv = 60;
+  bullets = []; enemies = []; fx = []; items = [];
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('gameOver').style.display = 'none';
+  document.getElementById('hud').style.display = 'flex';
+}
+
+function gameOver() {
+  G.run = false;
+  document.getElementById('fScore').textContent = G.score.toLocaleString();
+  document.getElementById('fWave').textContent = 'WAVE ' + G.wave;
+  document.getElementById('gameOver').style.display = 'flex';
+  document.getElementById('hud').style.display = 'none';
+}
+
+document.getElementById('btnStart').onclick = startGame;
+document.getElementById('btnRestart').onclick = startGame;
+addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && !G.run && document.getElementById('overlay').style.display !== 'none') { e.preventDefault(); startGame(); }
+  if ((e.key === 'Enter' || e.key === ' ') && !G.run && document.getElementById('gameOver').style.display !== 'none') { e.preventDefault(); startGame(); }
+});
+
+loop();
+</script>
+</body>
+</html>
